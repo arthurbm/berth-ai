@@ -6,12 +6,39 @@
     "web": {
       "bundler": "metro"
     },
+    "newArchEnabled": true,
     "name": "berth-ai",
     "slug": "berth-ai",
-    "plugins": ["expo-font", "expo-sqlite"],
+    "plugins": [
+      "expo-font",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      [
+        "llama.rn",
+        {
+          "enableEntitlements": true,
+          "entitlementsProfile": "production",
+          "forceCxx20": true,
+          "enableOpenCL": true
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "android": {
+      "package": "com.arthurbm32.berthai"
     }
   }
 }

@@ -16,7 +16,7 @@ export default function NotFoundScreen() {
 					<Text className="text-center text-muted text-sm">
 						Use o workspace principal para voltar ao app.
 					</Text>
-					<Link asChild href="/home">
+					<Link asChild href="/">
 						<Button variant="primary">
 							<Button.Label>Ir para Home</Button.Label>
 						</Button>

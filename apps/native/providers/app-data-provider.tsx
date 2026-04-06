@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { desc, eq } from "drizzle-orm";
 import { setStringAsync } from "expo-clipboard";
 import { getIpAddressAsync } from "expo-network";
@@ -7,15 +7,19 @@ import {
 	createContext,
 	type PropsWithChildren,
 	useEffect,
+	useEffectEvent,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
+import { AppState, type AppStateStatus, Platform } from "react-native";
 
 import {
 	INITIAL_PROVIDER_PORT,
 	MODEL_CATALOG,
 } from "@/lib/constants/model-catalog";
+import { nativeInferenceRuntime } from "@/lib/inference/native-runtime";
+import { handleProviderRequest } from "@/lib/provider/request-handler";
 import { APP_SNAPSHOT_QUERY_KEY } from "@/lib/query/query-client";
 import { db } from "@/lib/storage/client";
 import { migrateDatabase } from "@/lib/storage/database";
@@ -29,6 +33,10 @@ import {
 } from "@/lib/storage/schema";
 import { getConversationTitle, truncateText } from "@/lib/utils/format";
 import { createId } from "@/lib/utils/id";
+import {
+	getProviderServerModule,
+	type ProviderServerIncomingRequest,
+} from "@/modules/provider-server";
 import type {
 	AppSnapshot,
 	Conversation,
@@ -37,31 +45,37 @@ import type {
 	LocalModelRecord,
 	MessageRole,
 	MessageStatus,
+	ModelCatalogEntry,
 	ModelDownloadState,
+	ProviderRequestLog,
 	ProviderRuntimeInfo,
 	ProviderSettings,
 	ProviderTestResult,
 	RequestLogStatus,
+	RuntimeStatus,
 	SendMessageInput,
 } from "@/types/app-state";
 
 const SETTINGS_KEYS = {
 	activeModelId: "active_model_id",
 	currentConversationId: "current_conversation_id",
+	providerAuthRequired: "provider_auth_required",
 	providerEnabled: "provider_enabled",
 	providerExposureMode: "provider_exposure_mode",
 	providerPort: "provider_port",
-	providerAuthRequired: "provider_auth_required",
 	providerTransportMode: "provider_transport_mode",
 } as const;
 
 const PROVIDER_TOKEN_KEY = "provider_token";
+const PROVIDER_MODULE = getProviderServerModule();
+const PROVIDER_SUPPORTED = Platform.OS === "android";
+const V1_PATH_SUFFIX_REGEX = /\/v1$/;
 
 const DEFAULT_GAMBI_DRAFT: GambiDraftConfig = {
-	roomName: "",
-	roomCode: "",
 	credential: "",
 	modelId: null,
+	roomCode: "",
+	roomName: "",
 	visibility: "private",
 };
 
@@ -93,13 +107,10 @@ export const AppDataContext = createContext<AppDataContextValue | undefined>(
 	undefined
 );
 
-type DownloadTimerMap = Map<string, ReturnType<typeof setInterval>>;
-
 interface GenerationSession {
 	messageId: string;
 	requestId: string;
 	startedAt: number;
-	timerId: ReturnType<typeof setInterval>;
 }
 
 const runInBackground = (task: Promise<unknown>) => {
@@ -109,17 +120,26 @@ const runInBackground = (task: Promise<unknown>) => {
 const buildProviderRuntime = (
 	host: string,
 	providerSettings: ProviderSettings,
-	capabilities: ProviderRuntimeInfo["capabilities"]
-): ProviderRuntimeInfo => ({
-	baseUrl: `http://${host}:${providerSettings.port}/v1`,
-	host,
-	transportLabel:
-		providerSettings.transportMode === "native"
+	capabilities: ProviderRuntimeInfo["capabilities"],
+	overrides?: Partial<ProviderRuntimeInfo>
+): ProviderRuntimeInfo => {
+	const platformSupport = PROVIDER_SUPPORTED ? "full" : "experimental";
+
+	return {
+		baseUrl: `http://${host}:${providerSettings.port}/v1`,
+		capabilities,
+		host,
+		lastError: null,
+		lastStartedAt: null,
+		platformSupport,
+		transportLabel: PROVIDER_SUPPORTED
 			? "HTTP local nativo"
-			: "Adapter Open Responses simulado",
-	transportReady: providerSettings.transportMode === "native",
-	capabilities,
-});
+			: "Provider HTTP experimental nesta plataforma",
+		transportReady:
+			PROVIDER_SUPPORTED && providerSettings.transportMode === "native",
+		...overrides,
+	};
+};
 
 const createToken = () => {
 	const segments = [Math.random(), Math.random(), Math.random()].map((value) =>
@@ -130,35 +150,35 @@ const createToken = () => {
 };
 
 const createInitialSnapshot = (): AppSnapshot => ({
-	catalog: MODEL_CATALOG,
-	localModels: [],
 	activeModelId: null,
+	catalog: MODEL_CATALOG,
 	conversations: [],
-	messages: [],
 	currentConversationId: null,
-	providerSettings: {
-		enabled: false,
-		authRequired: true,
-		exposureMode: "lan",
-		port: INITIAL_PROVIDER_PORT,
-		transportMode: "simulated",
-	},
-	providerToken: "",
 	endpointStatus: "offline",
+	gambiDraft: DEFAULT_GAMBI_DRAFT,
+	isHydrated: false,
+	localModels: [],
+	messages: [],
 	providerRuntime: buildProviderRuntime(
 		"127.0.0.1",
 		{
-			enabled: false,
 			authRequired: true,
+			enabled: false,
 			exposureMode: "lan",
 			port: INITIAL_PROVIDER_PORT,
-			transportMode: "simulated",
+			transportMode: "native",
 		},
 		[]
 	),
+	providerSettings: {
+		authRequired: true,
+		enabled: false,
+		exposureMode: "lan",
+		port: INITIAL_PROVIDER_PORT,
+		transportMode: "native",
+	},
+	providerToken: "",
 	requestLogs: [],
-	gambiDraft: DEFAULT_GAMBI_DRAFT,
-	isHydrated: false,
 });
 
 async function getSetting(key: string) {
@@ -181,24 +201,22 @@ async function deleteSetting(key: string) {
 }
 
 async function loadProviderSettings(): Promise<ProviderSettings> {
-	const [enabled, exposureMode, port, authRequired, transportMode] =
-		await Promise.all([
-			getSetting(SETTINGS_KEYS.providerEnabled),
-			getSetting(SETTINGS_KEYS.providerExposureMode),
-			getSetting(SETTINGS_KEYS.providerPort),
-			getSetting(SETTINGS_KEYS.providerAuthRequired),
-			getSetting(SETTINGS_KEYS.providerTransportMode),
-		]);
+	const [enabled, exposureMode, port, authRequired] = await Promise.all([
+		getSetting(SETTINGS_KEYS.providerEnabled),
+		getSetting(SETTINGS_KEYS.providerExposureMode),
+		getSetting(SETTINGS_KEYS.providerPort),
+		getSetting(SETTINGS_KEYS.providerAuthRequired),
+	]);
 
 	return {
+		authRequired: authRequired !== "false",
 		enabled: enabled === "true",
 		exposureMode:
 			exposureMode === "external_experimental"
 				? "external_experimental"
 				: "lan",
 		port: Number(port ?? INITIAL_PROVIDER_PORT),
-		authRequired: authRequired !== "false",
-		transportMode: transportMode === "native" ? "native" : "simulated",
+		transportMode: "native",
 	};
 }
 
@@ -230,6 +248,96 @@ async function resolveHost(currentHost: string) {
 	}
 }
 
+function castLocalModel(model: Record<string, unknown>): LocalModelRecord {
+	return {
+		artifactId: (model.artifactId as string | null) ?? null,
+		bytesOnDisk: Number(model.bytesOnDisk ?? 0),
+		downloadUrl: (model.downloadUrl as string | null) ?? null,
+		errorMessage: (model.errorMessage as string | null) ?? null,
+		installedAt: (model.installedAt as string | null) ?? null,
+		lastUsedAt: (model.lastUsedAt as string | null) ?? null,
+		localPath: (model.localPath as string | null) ?? null,
+		modelId: String(model.modelId),
+		preparedAt: (model.preparedAt as string | null) ?? null,
+		progress: Number(model.progress ?? 0),
+		resumeData: (model.resumeData as string | null) ?? null,
+		runtimeStatus: ((model.runtimeStatus as RuntimeStatus | null) ??
+			"unloaded") as RuntimeStatus,
+		status: model.status as ModelDownloadState,
+		updatedAt: String(model.updatedAt),
+	};
+}
+
+function castMessage(message: Record<string, unknown>): ConversationMessage {
+	return {
+		content: String(message.content),
+		conversationId: String(message.conversationId),
+		createdAt: String(message.createdAt),
+		id: String(message.id),
+		role: message.role as MessageRole,
+		status: message.status as MessageStatus,
+	};
+}
+
+function castRequestLog(log: Record<string, unknown>): ProviderRequestLog {
+	return {
+		clientAddress: (log.clientAddress as string | null) ?? null,
+		createdAt: String(log.createdAt),
+		endpoint: String(log.endpoint),
+		errorMessage: (log.errorMessage as string | null) ?? null,
+		id: String(log.id),
+		latencyMs: Number(log.latencyMs ?? 0),
+		method: String(log.method),
+		modelId: (log.modelId as string | null) ?? null,
+		responsePreview: (log.responsePreview as string | null) ?? null,
+		source: String(log.source),
+		status: log.status as RequestLogStatus,
+		statusCode: (log.statusCode as number | null) ?? null,
+		summary: String(log.summary),
+	};
+}
+
+async function synchronizeLocalModel(
+	record: LocalModelRecord
+): Promise<LocalModelRecord> {
+	const catalogEntry = MODEL_CATALOG.find(
+		(model) => model.id === record.modelId
+	);
+
+	if (!catalogEntry) {
+		return record;
+	}
+
+	const installed =
+		await nativeInferenceRuntime.getInstalledModelState(catalogEntry);
+
+	if (
+		!installed.exists &&
+		(record.status === "ready" || record.status === "in_use")
+	) {
+		return {
+			...record,
+			bytesOnDisk: 0,
+			errorMessage: "Arquivo do modelo não encontrado no armazenamento local.",
+			localPath: null,
+			runtimeStatus: "error" as const,
+			status: "error" as const,
+		};
+	}
+
+	if (!installed.exists) {
+		return record;
+	}
+
+	return {
+		...record,
+		artifactId: record.artifactId ?? catalogEntry.artifactId,
+		bytesOnDisk: installed.bytesOnDisk,
+		downloadUrl: record.downloadUrl ?? catalogEntry.downloadUrl,
+		localPath: installed.localPath,
+	};
+}
+
 async function loadSnapshot(): Promise<AppSnapshot> {
 	const [
 		localModels,
@@ -259,53 +367,27 @@ async function loadSnapshot(): Promise<AppSnapshot> {
 		getSetting(SETTINGS_KEYS.currentConversationId),
 	]);
 
-	const typedLocalModels: LocalModelRecord[] = localModels.map((model) => ({
-		...model,
-		status: model.status as ModelDownloadState,
-	}));
-	const typedMessages: ConversationMessage[] = messages.map((message) => ({
-		...message,
-		role: message.role as MessageRole,
-		status: message.status as MessageStatus,
-	}));
-	const typedRequestLogs: AppSnapshot["requestLogs"] = requestLogs.map(
-		(log) => ({
-			...log,
-			status: log.status as RequestLogStatus,
-		})
+	const synchronizedLocalModels = await Promise.all(
+		localModels.map((model) => synchronizeLocalModel(castLocalModel(model)))
 	);
+	const typedMessages = messages.map((message) => castMessage(message));
+	const typedRequestLogs = requestLogs.map((log) => castRequestLog(log));
 	const typedGambiDraft: GambiDraftConfig = gambiDraft
 		? {
-				roomName: gambiDraft.roomName,
-				roomCode: gambiDraft.roomCode,
 				credential: gambiDraft.credential,
 				modelId: gambiDraft.modelId,
+				roomCode: gambiDraft.roomCode,
+				roomName: gambiDraft.roomName,
 				visibility: gambiDraft.visibility as GambiDraftConfig["visibility"],
 			}
 		: DEFAULT_GAMBI_DRAFT;
-
-	const normalizedLocalModels = typedLocalModels.map((model) =>
-		model.status === "downloading" || model.status === "queued"
-			? { ...model, status: "paused" as const }
-			: model
-	);
-
-	await Promise.all(
-		normalizedLocalModels
-			.filter((model) => model.status === "paused")
-			.map((model) =>
-				db
-					.update(localModelsTable)
-					.set({ status: "paused", updatedAt: new Date().toISOString() })
-					.where(eq(localModelsTable.modelId, model.modelId))
-			)
-	);
-
 	const providerSettings = await loadProviderSettings();
 	const providerToken = await getProviderToken();
 	const activeModel =
-		normalizedLocalModels.find(
-			(item) => item.modelId === activeModelId && item.status === "ready"
+		synchronizedLocalModels.find(
+			(item) =>
+				item.modelId === activeModelId &&
+				(item.status === "ready" || item.status === "in_use")
 		) ?? null;
 	const activeModelCapabilities =
 		MODEL_CATALOG.find(
@@ -314,93 +396,76 @@ async function loadSnapshot(): Promise<AppSnapshot> {
 	const host = await resolveHost("127.0.0.1");
 
 	return {
-		catalog: MODEL_CATALOG,
-		localModels: normalizedLocalModels,
 		activeModelId: activeModel?.modelId ?? null,
+		catalog: MODEL_CATALOG,
 		conversations,
-		messages: typedMessages,
 		currentConversationId,
-		providerSettings,
-		providerToken,
-		endpointStatus: providerSettings.enabled ? "online" : "offline",
+		endpointStatus: "offline",
+		gambiDraft: typedGambiDraft,
+		isHydrated: true,
+		localModels: synchronizedLocalModels,
+		messages: typedMessages,
 		providerRuntime: buildProviderRuntime(
 			host,
 			providerSettings,
 			activeModelCapabilities
 		),
+		providerSettings,
+		providerToken,
 		requestLogs: typedRequestLogs,
-		gambiDraft: typedGambiDraft,
-		isHydrated: true,
 	};
-}
-
-function createStreamingResponse(prompt: string, modelName: string) {
-	const compactPrompt = truncateText(prompt.trim(), 120);
-
-	return [
-		`${modelName} recebeu: "${compactPrompt}".`,
-		"Esta build já compartilha o mesmo adapter entre chat e provider, então o fluxo aqui representa a resposta canônica orientada a Responses.",
-		"O próximo passo técnico é substituir o transport simulado pelo servidor HTTP local nativo, sem mexer na UI nem nos contratos internos.",
-	].join(" ");
 }
 
 export function AppDataProvider({ children }: PropsWithChildren) {
 	const [snapshot, setSnapshot] = useState<AppSnapshot>(createInitialSnapshot);
-	const queryClient = useQueryClient();
-	const downloadTimersRef = useRef<DownloadTimerMap>(new Map());
+	const snapshotRef = useRef(snapshot);
 	const generationSessionsRef = useRef<Map<string, GenerationSession>>(
 		new Map()
 	);
+	const abortedGenerationsRef = useRef<Set<string>>(new Set());
+	const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 	const snapshotQuery = useQuery({
 		queryKey: APP_SNAPSHOT_QUERY_KEY,
 		queryFn: async () => {
 			await migrateDatabase();
+			await nativeInferenceRuntime.ensureModelsDirectory();
 			return loadSnapshot();
 		},
 	});
 
 	useEffect(() => {
-		return () => {
-			for (const timerId of downloadTimersRef.current.values()) {
-				clearInterval(timerId);
-			}
-
-			for (const session of generationSessionsRef.current.values()) {
-				clearInterval(session.timerId);
-			}
-		};
-	}, []);
+		snapshotRef.current = snapshot;
+	}, [snapshot]);
 
 	useEffect(() => {
-		if (snapshotQuery.data) {
+		if (snapshotQuery.data && !snapshotRef.current.isHydrated) {
 			setSnapshot(snapshotQuery.data);
 		}
 	}, [snapshotQuery.data]);
 
-	useEffect(() => {
-		if (snapshot.isHydrated) {
-			queryClient.setQueryData(APP_SNAPSHOT_QUERY_KEY, snapshot);
+	const refreshRuntime = useEffectEvent(
+		async (
+			draft: AppSnapshot,
+			overrides?: Partial<ProviderRuntimeInfo>
+		): Promise<AppSnapshot> => {
+			const host = await resolveHost(draft.providerRuntime.host);
+			const activeModelCapabilities =
+				draft.catalog
+					.find((model) => model.id === draft.activeModelId)
+					?.capabilities.filter((capability) => capability !== "embeddings") ??
+				[];
+
+			return {
+				...draft,
+				providerRuntime: buildProviderRuntime(
+					host,
+					draft.providerSettings,
+					activeModelCapabilities,
+					overrides
+				),
+			};
 		}
-	}, [queryClient, snapshot]);
-
-	const refreshRuntime = async (draft: AppSnapshot): Promise<AppSnapshot> => {
-		const host = await resolveHost(draft.providerRuntime.host);
-		const activeModelCapabilities =
-			draft.catalog
-				.find((model) => model.id === draft.activeModelId)
-				?.capabilities.filter((capability) => capability !== "embeddings") ??
-			[];
-
-		return {
-			...draft,
-			providerRuntime: buildProviderRuntime(
-				host,
-				draft.providerSettings,
-				activeModelCapabilities
-			),
-			endpointStatus: draft.providerSettings.enabled ? "online" : "offline",
-		};
-	};
+	);
 
 	const persistLocalModel = async (record: LocalModelRecord) => {
 		await db
@@ -409,13 +474,19 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.onConflictDoUpdate({
 				target: localModelsTable.modelId,
 				set: {
-					status: record.status,
-					progress: record.progress,
+					artifactId: record.artifactId,
 					bytesOnDisk: record.bytesOnDisk,
-					installedAt: record.installedAt,
-					updatedAt: record.updatedAt,
-					lastUsedAt: record.lastUsedAt,
+					downloadUrl: record.downloadUrl,
 					errorMessage: record.errorMessage,
+					installedAt: record.installedAt,
+					lastUsedAt: record.lastUsedAt,
+					localPath: record.localPath,
+					preparedAt: record.preparedAt,
+					progress: record.progress,
+					resumeData: record.resumeData,
+					runtimeStatus: record.runtimeStatus,
+					status: record.status,
+					updatedAt: record.updatedAt,
 				},
 			});
 	};
@@ -427,8 +498,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.onConflictDoUpdate({
 				target: conversationsTable.id,
 				set: {
-					title: conversation.title,
 					modelId: conversation.modelId,
+					title: conversation.title,
 					updatedAt: conversation.updatedAt,
 				},
 			});
@@ -447,7 +518,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			});
 	};
 
-	const appendRequestLog = async (log: AppSnapshot["requestLogs"][number]) => {
+	const appendRequestLog = async (log: ProviderRequestLog) => {
 		await db.insert(requestLogsTable).values(log);
 		setSnapshot((current) => ({
 			...current,
@@ -455,101 +526,251 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 		}));
 	};
 
-	const startDownload = async (modelId: string) => {
-		const catalogEntry = snapshot.catalog.find((item) => item.id === modelId);
+	const updateLocalModelRuntimeStatus = async (
+		modelId: string,
+		runtimeStatus: RuntimeStatus,
+		errorMessage: string | null = null
+	) => {
+		const currentRecord = snapshotRef.current.localModels.find(
+			(item) => item.modelId === modelId
+		);
 
-		if (!catalogEntry) {
+		if (!currentRecord) {
 			return;
 		}
 
-		const currentRecord = snapshot.localModels.find(
-			(record) => record.modelId === modelId
-		) ?? {
-			modelId,
-			status: "queued" as const,
-			progress: 0,
-			bytesOnDisk: 0,
-			installedAt: null,
+		const nextRecord: LocalModelRecord = {
+			...currentRecord,
+			errorMessage,
+			preparedAt:
+				runtimeStatus === "ready"
+					? new Date().toISOString()
+					: currentRecord.preparedAt,
+			runtimeStatus,
 			updatedAt: new Date().toISOString(),
-			lastUsedAt: null,
-			errorMessage: null,
 		};
 
-		const queuedRecord: LocalModelRecord = {
-			...currentRecord,
-			status: "downloading",
-			updatedAt: new Date().toISOString(),
-			errorMessage: null,
+		await persistLocalModel(nextRecord);
+		setSnapshot((current) => ({
+			...current,
+			localModels: current.localModels.map((item) =>
+				item.modelId === modelId ? nextRecord : item
+			),
+		}));
+	};
+
+	const startProviderServer = useEffectEvent(async () => {
+		const current = snapshotRef.current;
+
+		if (!(current.isHydrated && current.providerSettings.enabled)) {
+			return;
+		}
+
+		if (!PROVIDER_SUPPORTED) {
+			const nextSnapshot = await refreshRuntime(current, {
+				lastError:
+					"Provider HTTP real ainda não está habilitado nesta plataforma.",
+				platformSupport: "experimental",
+				transportReady: false,
+			});
+			setSnapshot({ ...nextSnapshot, endpointStatus: "error" });
+			return;
+		}
+
+		setSnapshot((value) => ({ ...value, endpointStatus: "starting" }));
+
+		try {
+			const result = await PROVIDER_MODULE.start(current.providerSettings.port);
+			const nextSnapshot = await refreshRuntime(current, {
+				lastError:
+					result.status === "online" ? null : "Falha ao subir o provider.",
+				lastStartedAt: new Date().toISOString(),
+				transportReady: result.status === "online",
+			});
+
+			setSnapshot({
+				...nextSnapshot,
+				endpointStatus: result.status === "online" ? "online" : "error",
+			});
+		} catch (error) {
+			const nextSnapshot = await refreshRuntime(current, {
+				lastError:
+					error instanceof Error
+						? error.message
+						: "Falha ao iniciar o provider.",
+				transportReady: false,
+			});
+			setSnapshot({ ...nextSnapshot, endpointStatus: "error" });
+		}
+	});
+
+	const stopProviderServer = useEffectEvent(async () => {
+		try {
+			await PROVIDER_MODULE.stop();
+		} finally {
+			setSnapshot((current) => ({ ...current, endpointStatus: "offline" }));
+		}
+	});
+
+	const handleProviderHttpRequest = useEffectEvent(
+		(requestEvent: ProviderServerIncomingRequest) =>
+			handleProviderRequest({
+				appendRequestLog,
+				request: requestEvent,
+				serverModule: PROVIDER_MODULE,
+				snapshot: snapshotRef.current,
+			})
+	);
+
+	useEffect(() => {
+		const subscription = PROVIDER_MODULE.addListener("onRequest", (event) => {
+			runInBackground(handleProviderHttpRequest(event));
+		});
+
+		return () => {
+			subscription.remove();
 		};
+	}, []);
+
+	useEffect(() => {
+		const subscription = AppState.addEventListener("change", (nextState) => {
+			const previousState = appStateRef.current;
+			appStateRef.current = nextState;
+
+			if (
+				(previousState === "active" || previousState === "inactive") &&
+				nextState === "background"
+			) {
+				runInBackground(stopProviderServer());
+				return;
+			}
+
+			if (
+				nextState === "active" &&
+				snapshotRef.current.providerSettings.enabled &&
+				PROVIDER_SUPPORTED
+			) {
+				runInBackground(startProviderServer());
+			}
+		});
+
+		return () => {
+			subscription.remove();
+		};
+	}, []);
+
+	const createLocalModelRecord = (
+		entry: ModelCatalogEntry,
+		status: ModelDownloadState,
+		existing?: Partial<LocalModelRecord>
+	): LocalModelRecord => ({
+		artifactId: entry.artifactId,
+		bytesOnDisk: existing?.bytesOnDisk ?? 0,
+		downloadUrl: entry.downloadUrl,
+		errorMessage: existing?.errorMessage ?? null,
+		installedAt: existing?.installedAt ?? null,
+		lastUsedAt: existing?.lastUsedAt ?? null,
+		localPath: existing?.localPath ?? null,
+		modelId: entry.id,
+		preparedAt: existing?.preparedAt ?? null,
+		progress: existing?.progress ?? 0,
+		resumeData: existing?.resumeData ?? null,
+		runtimeStatus: existing?.runtimeStatus ?? "unloaded",
+		status,
+		updatedAt: new Date().toISOString(),
+	});
+
+	const startDownload = async (modelId: string) => {
+		const entry = snapshotRef.current.catalog.find(
+			(item) => item.id === modelId
+		);
+
+		if (!entry || entry.capabilities.includes("embeddings")) {
+			return;
+		}
+
+		const existing = snapshotRef.current.localModels.find(
+			(item) => item.modelId === modelId
+		);
+		const queuedRecord = createLocalModelRecord(entry, "downloading", existing);
 
 		await persistLocalModel(queuedRecord);
 		setSnapshot((current) => ({
 			...current,
 			localModels: [
 				queuedRecord,
-				...current.localModels.filter((record) => record.modelId !== modelId),
+				...current.localModels.filter((item) => item.modelId !== modelId),
 			],
 		}));
 
-		const existingTimer = downloadTimersRef.current.get(modelId);
+		runInBackground(
+			nativeInferenceRuntime.startDownload(entry, queuedRecord, {
+				onComplete: async ({ bytesOnDisk, localPath, resumeData }) => {
+					const nextRecord: LocalModelRecord = {
+						...queuedRecord,
+						bytesOnDisk,
+						errorMessage: null,
+						installedAt: new Date().toISOString(),
+						localPath,
+						progress: 1,
+						resumeData,
+						runtimeStatus: "unloaded",
+						status: "ready",
+						updatedAt: new Date().toISOString(),
+					};
 
-		if (existingTimer) {
-			clearInterval(existingTimer);
-		}
+					await persistLocalModel(nextRecord);
+					setSnapshot((current) => ({
+						...current,
+						localModels: current.localModels.map((item) =>
+							item.modelId === modelId ? nextRecord : item
+						),
+					}));
+				},
+				onError: async (errorMessage) => {
+					const nextRecord: LocalModelRecord = {
+						...queuedRecord,
+						errorMessage,
+						runtimeStatus: "error",
+						status: "error",
+						updatedAt: new Date().toISOString(),
+					};
 
-		const timerId = setInterval(() => {
-			setSnapshot((current) => {
-				const existing = current.localModels.find(
-					(record) => record.modelId === modelId
-				);
+					await persistLocalModel(nextRecord);
+					setSnapshot((current) => ({
+						...current,
+						localModels: current.localModels.map((item) =>
+							item.modelId === modelId ? nextRecord : item
+						),
+					}));
+				},
+				onProgress: async ({ bytesOnDisk, progress }) => {
+					const currentRecord =
+						snapshotRef.current.localModels.find(
+							(item) => item.modelId === modelId
+						) ?? queuedRecord;
+					const nextRecord: LocalModelRecord = {
+						...currentRecord,
+						bytesOnDisk,
+						progress,
+						status: "downloading",
+						updatedAt: new Date().toISOString(),
+					};
 
-				if (!existing || existing.status !== "downloading") {
-					return current;
-				}
-
-				const nextProgress = Math.min(1, existing.progress + 0.08);
-				const nextStatus = nextProgress >= 1 ? "ready" : "downloading";
-				const nextRecord: LocalModelRecord = {
-					...existing,
-					status: nextStatus,
-					progress: nextProgress,
-					bytesOnDisk: Math.round(catalogEntry.approxBytes * nextProgress),
-					installedAt:
-						nextStatus === "ready"
-							? new Date().toISOString()
-							: existing.installedAt,
-					updatedAt: new Date().toISOString(),
-					errorMessage: null,
-				};
-
-				runInBackground(persistLocalModel(nextRecord));
-
-				if (nextStatus === "ready") {
-					clearInterval(timerId);
-					downloadTimersRef.current.delete(modelId);
-				}
-
-				return {
-					...current,
-					localModels: current.localModels.map((record) =>
-						record.modelId === modelId ? nextRecord : record
-					),
-				};
-			});
-		}, 550);
-
-		downloadTimersRef.current.set(modelId, timerId);
+					await persistLocalModel(nextRecord);
+					setSnapshot((current) => ({
+						...current,
+						localModels: current.localModels.map((item) =>
+							item.modelId === modelId ? nextRecord : item
+						),
+					}));
+				},
+			})
+		);
 	};
 
 	const pauseDownload = async (modelId: string) => {
-		const timerId = downloadTimersRef.current.get(modelId);
-
-		if (timerId) {
-			clearInterval(timerId);
-			downloadTimersRef.current.delete(modelId);
-		}
-
-		const record = snapshot.localModels.find(
+		const record = snapshotRef.current.localModels.find(
 			(item) => item.modelId === modelId
 		);
 
@@ -557,8 +778,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			return;
 		}
 
+		const resumeData = await nativeInferenceRuntime.pauseDownload(modelId);
 		const nextRecord: LocalModelRecord = {
 			...record,
+			resumeData,
 			status: "paused",
 			updatedAt: new Date().toISOString(),
 		};
@@ -573,18 +796,20 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const cancelDownload = async (modelId: string) => {
-		const timerId = downloadTimersRef.current.get(modelId);
+		const entry = snapshotRef.current.catalog.find(
+			(item) => item.id === modelId
+		);
 
-		if (timerId) {
-			clearInterval(timerId);
-			downloadTimersRef.current.delete(modelId);
+		if (!entry) {
+			return;
 		}
 
+		await nativeInferenceRuntime.cancelDownload(entry);
 		await db
 			.delete(localModelsTable)
 			.where(eq(localModelsTable.modelId, modelId));
 
-		if (snapshot.activeModelId === modelId) {
+		if (snapshotRef.current.activeModelId === modelId) {
 			await deleteSetting(SETTINGS_KEYS.activeModelId);
 		}
 
@@ -599,61 +824,92 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const removeModel = async (modelId: string) => {
+		const entry = snapshotRef.current.catalog.find(
+			(item) => item.id === modelId
+		);
+
+		if (!entry) {
+			return;
+		}
+
+		await nativeInferenceRuntime.removeModel(entry);
 		await cancelDownload(modelId);
 	};
 
 	const setActiveModel = async (modelId: string) => {
-		const readyRecord = snapshot.localModels.find(
+		const current = snapshotRef.current;
+		const entry = current.catalog.find((item) => item.id === modelId);
+		const record = current.localModels.find(
 			(item) =>
 				item.modelId === modelId &&
 				(item.status === "ready" || item.status === "in_use")
 		);
 
-		if (!readyRecord) {
+		if (!(entry && record)) {
 			return;
 		}
 
 		const nextUpdatedAt = new Date().toISOString();
-		const nextLocalModels = snapshot.localModels.map((record) => {
-			if (record.modelId === modelId) {
-				const nextRecord: LocalModelRecord = {
-					...record,
-					status: "in_use",
+		const nextLocalModels = current.localModels.map((item) => {
+			if (item.modelId === modelId) {
+				return {
+					...item,
+					errorMessage: null,
 					lastUsedAt: nextUpdatedAt,
+					runtimeStatus: "preparing" as const,
+					status: "in_use" as const,
 					updatedAt: nextUpdatedAt,
 				};
-
-				runInBackground(persistLocalModel(nextRecord));
-
-				return nextRecord;
 			}
 
-			if (record.status === "in_use") {
-				const nextRecord: LocalModelRecord = {
-					...record,
-					status: "ready",
+			if (item.status === "in_use") {
+				return {
+					...item,
+					runtimeStatus: "unloaded" as const,
+					status: "ready" as const,
 					updatedAt: nextUpdatedAt,
 				};
-
-				runInBackground(persistLocalModel(nextRecord));
-
-				return nextRecord;
 			}
 
-			return record;
+			return item;
 		});
 
-		await setSetting(SETTINGS_KEYS.activeModelId, modelId);
-		const nextSnapshot = await refreshRuntime({
-			...snapshot,
+		await Promise.all([
+			setSetting(SETTINGS_KEYS.activeModelId, modelId),
+			...nextLocalModels.map((item) => persistLocalModel(item)),
+		]);
+		setSnapshot((value) => ({
+			...value,
 			activeModelId: modelId,
 			localModels: nextLocalModels,
-		});
-		setSnapshot(nextSnapshot);
+		}));
+
+		try {
+			await nativeInferenceRuntime.prepareModel(entry);
+			await updateLocalModelRuntimeStatus(modelId, "ready");
+			const nextSnapshot = await refreshRuntime({
+				...snapshotRef.current,
+				activeModelId: modelId,
+				localModels: nextLocalModels.map((item) =>
+					item.modelId === modelId
+						? {
+								...item,
+								preparedAt: new Date().toISOString(),
+								runtimeStatus: "ready",
+							}
+						: item
+				),
+			});
+			setSnapshot(nextSnapshot);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Falha ao preparar o modelo.";
+			await updateLocalModelRuntimeStatus(modelId, "error", message);
+		}
 	};
 
 	const createConversation = async () => {
-		const modelId = snapshot.activeModelId;
+		const modelId = snapshotRef.current.activeModelId;
 
 		if (!modelId) {
 			return null;
@@ -661,10 +917,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 
 		const now = new Date().toISOString();
 		const conversation: Conversation = {
-			id: createId("conv"),
-			title: "Nova conversa",
-			modelId,
 			createdAt: now,
+			id: createId("conv"),
+			modelId,
+			title: "Nova conversa",
 			updatedAt: now,
 		};
 
@@ -672,8 +928,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 		await setSetting(SETTINGS_KEYS.currentConversationId, conversation.id);
 		setSnapshot((current) => ({
 			...current,
-			currentConversationId: conversation.id,
 			conversations: [conversation, ...current.conversations],
+			currentConversationId: conversation.id,
 		}));
 
 		return conversation.id;
@@ -692,7 +948,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.delete(messagesTable)
 			.where(eq(messagesTable.conversationId, conversationId));
 
-		const currentConversation = snapshot.conversations.find(
+		const currentConversation = snapshotRef.current.conversations.find(
 			(conversation) => conversation.id === conversationId
 		);
 
@@ -726,8 +982,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			return;
 		}
 
-		clearInterval(session.timerId);
-		generationSessionsRef.current.delete(conversationId);
+		abortedGenerationsRef.current.add(conversationId);
+		await nativeInferenceRuntime.stopGeneration(conversationId);
 
 		await Promise.all([
 			db
@@ -737,9 +993,9 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			db
 				.update(requestLogsTable)
 				.set({
-					status: "cancelled",
 					errorMessage: "Geração interrompida manualmente.",
 					latencyMs: Date.now() - session.startedAt,
+					status: "cancelled",
 				})
 				.where(eq(requestLogsTable.id, session.requestId)),
 		]);
@@ -755,9 +1011,9 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 				log.id === session.requestId
 					? {
 							...log,
-							status: "cancelled",
 							errorMessage: "Geração interrompida manualmente.",
 							latencyMs: Date.now() - session.startedAt,
+							status: "cancelled",
 						}
 					: log
 			),
@@ -765,66 +1021,65 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const sendMessage = async ({ conversationId, prompt }: SendMessageInput) => {
-		const activeModelId = snapshot.activeModelId;
+		const current = snapshotRef.current;
+		const activeModelId = current.activeModelId;
+		const activeModel = current.catalog.find(
+			(model) => model.id === activeModelId
+		);
 
-		if (!activeModelId) {
+		if (!(activeModelId && activeModel)) {
 			await appendRequestLog({
-				id: createId("req"),
-				endpoint: "/internal/generate",
-				method: "POST",
-				status: "error",
-				modelId: null,
-				latencyMs: 0,
-				source: "app-chat",
+				clientAddress: null,
 				createdAt: new Date().toISOString(),
-				summary: "Tentativa de gerar sem modelo ativo.",
+				endpoint: "/internal/generate",
 				errorMessage: "Selecione um modelo pronto antes de conversar.",
+				id: createId("req"),
+				latencyMs: 0,
+				method: "POST",
+				modelId: null,
 				responsePreview: null,
+				source: "app-chat",
+				status: "error",
+				statusCode: null,
+				summary: "Tentativa de gerar sem modelo ativo.",
 			});
-
 			return;
 		}
 
 		const conversation =
-			snapshot.conversations.find((item) => item.id === conversationId) ??
-			(await (async () => {
-				const createdId = await createConversation();
-
-				return (
-					snapshot.conversations.find((item) => item.id === createdId) ?? null
-				);
-			})());
+			current.conversations.find((item) => item.id === conversationId) ?? null;
 
 		if (!conversation) {
 			return;
 		}
 
+		const now = new Date().toISOString();
 		const userMessage: ConversationMessage = {
-			id: createId("msg"),
-			conversationId,
-			role: "user",
 			content: prompt.trim(),
+			conversationId,
+			createdAt: now,
+			id: createId("msg"),
+			role: "user",
 			status: "complete",
-			createdAt: new Date().toISOString(),
 		};
 		const assistantMessage: ConversationMessage = {
-			id: createId("msg"),
-			conversationId,
-			role: "assistant",
 			content: "",
+			conversationId,
+			createdAt: now,
+			id: createId("msg"),
+			role: "assistant",
 			status: "streaming",
-			createdAt: new Date().toISOString(),
 		};
 		const nextConversation: Conversation = {
 			...conversation,
+			modelId: activeModelId,
 			title:
-				snapshot.messages.filter(
+				current.messages.filter(
 					(message) => message.conversationId === conversationId
 				).length === 0
 					? getConversationTitle(prompt)
 					: conversation.title,
-			updatedAt: new Date().toISOString(),
-			modelId: activeModelId,
+			updatedAt: now,
 		};
 
 		await Promise.all([
@@ -834,108 +1089,169 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			setSetting(SETTINGS_KEYS.currentConversationId, conversationId),
 		]);
 
-		const modelName =
-			snapshot.catalog.find((model) => model.id === activeModelId)
-				?.displayName ?? "Modelo local";
-		const response = createStreamingResponse(prompt, modelName);
-		const chunks = response
-			.match(/.{1,36}(\s|$)/g)
-			?.map((chunk) => chunk.trimStart()) ?? [response];
 		const requestId = createId("req");
+		generationSessionsRef.current.set(conversationId, {
+			messageId: assistantMessage.id,
+			requestId,
+			startedAt: Date.now(),
+		});
 
-		setSnapshot((current) => ({
-			...current,
-			currentConversationId: conversationId,
+		setSnapshot((value) => ({
+			...value,
 			conversations: [
 				nextConversation,
-				...current.conversations.filter((item) => item.id !== conversationId),
+				...value.conversations.filter((item) => item.id !== conversationId),
 			],
-			messages: [...current.messages, userMessage, assistantMessage],
+			currentConversationId: conversationId,
+			messages: [...value.messages, userMessage, assistantMessage],
 		}));
 
-		let currentContent = "";
-		let chunkIndex = 0;
-		const startedAt = Date.now();
+		const history = [
+			...current.messages.filter(
+				(message) => message.conversationId === conversationId
+			),
+			userMessage,
+		];
 
-		const timerId = setInterval(() => {
-			if (chunkIndex >= chunks.length) {
-				clearInterval(timerId);
-				generationSessionsRef.current.delete(conversationId);
+		try {
+			const generation = await nativeInferenceRuntime.generate(
+				{
+					conversationMessages: history,
+					generationKey: conversationId,
+					model: activeModel,
+					prompt: prompt.trim(),
+				},
+				{
+					onDelta: (delta) => {
+						setSnapshot((value) => {
+							const currentMessage = value.messages.find(
+								(message) => message.id === assistantMessage.id
+							);
+							const nextContent = `${currentMessage?.content ?? ""}${delta}`;
 
-				const completedLog = {
-					id: requestId,
-					endpoint: "/internal/generate",
-					method: "POST",
-					status: "success" as const,
-					modelId: activeModelId,
-					latencyMs: Date.now() - startedAt,
-					source: "app-chat",
-					createdAt: new Date().toISOString(),
-					summary: `Resposta local concluída em ${modelName}.`,
-					errorMessage: null,
-					responsePreview: truncateText(currentContent.trim(), 140),
-				};
+							runInBackground(
+								db
+									.update(messagesTable)
+									.set({ content: nextContent })
+									.where(eq(messagesTable.id, assistantMessage.id))
+							);
 
-				runInBackground(
-					Promise.all([
-						db
-							.update(messagesTable)
-							.set({ status: "complete" })
-							.where(eq(messagesTable.id, assistantMessage.id)),
-						appendRequestLog(completedLog),
-					])
-				);
+							return {
+								...value,
+								messages: value.messages.map((message) =>
+									message.id === assistantMessage.id
+										? { ...message, content: nextContent }
+										: message
+								),
+							};
+						});
+					},
+					onRuntimeStatusChange: async (runtimeStatus) => {
+						await updateLocalModelRuntimeStatus(activeModelId, runtimeStatus);
+					},
+				}
+			);
 
-				setSnapshot((current) => ({
-					...current,
-					messages: current.messages.map((message) =>
-						message.id === assistantMessage.id
-							? { ...message, status: "complete" }
-							: message
-					),
-				}));
+			const wasAborted = abortedGenerationsRef.current.has(conversationId);
+			abortedGenerationsRef.current.delete(conversationId);
+			generationSessionsRef.current.delete(conversationId);
 
+			if (wasAborted) {
 				return;
 			}
 
-			currentContent += `${chunks[chunkIndex]} `;
-			chunkIndex += 1;
-			const nextContent = currentContent.trimEnd();
+			await Promise.all([
+				db
+					.update(messagesTable)
+					.set({ status: "complete" })
+					.where(eq(messagesTable.id, assistantMessage.id)),
+				appendRequestLog({
+					clientAddress: null,
+					createdAt: new Date().toISOString(),
+					endpoint: "/internal/generate",
+					errorMessage: null,
+					id: requestId,
+					latencyMs: generation.latencyMs,
+					method: "POST",
+					modelId: activeModel.id,
+					responsePreview: truncateText(generation.responseText, 180),
+					source: "app-chat",
+					status: "success",
+					statusCode: null,
+					summary: `Resposta local concluída em ${activeModel.displayName}.`,
+				}),
+			]);
 
-			setSnapshot((current) => ({
-				...current,
-				messages: current.messages.map((message) =>
+			setSnapshot((value) => ({
+				...value,
+				messages: value.messages.map((message) =>
 					message.id === assistantMessage.id
-						? { ...message, content: nextContent }
+						? { ...message, status: "complete" }
 						: message
 				),
 			}));
-			runInBackground(
+		} catch (error) {
+			const wasAborted = abortedGenerationsRef.current.has(conversationId);
+			abortedGenerationsRef.current.delete(conversationId);
+			generationSessionsRef.current.delete(conversationId);
+
+			if (wasAborted) {
+				return;
+			}
+
+			const errorMessage =
+				error instanceof Error ? error.message : "Falha ao gerar resposta.";
+
+			await Promise.all([
 				db
 					.update(messagesTable)
-					.set({ content: nextContent })
-					.where(eq(messagesTable.id, assistantMessage.id))
-			);
-		}, 180);
+					.set({ status: "error" })
+					.where(eq(messagesTable.id, assistantMessage.id)),
+				appendRequestLog({
+					clientAddress: null,
+					createdAt: new Date().toISOString(),
+					endpoint: "/internal/generate",
+					errorMessage,
+					id: requestId,
+					latencyMs: 0,
+					method: "POST",
+					modelId: activeModel.id,
+					responsePreview: null,
+					source: "app-chat",
+					status: "error",
+					statusCode: null,
+					summary: "Geração local falhou.",
+				}),
+			]);
 
-		generationSessionsRef.current.set(conversationId, {
-			timerId,
-			messageId: assistantMessage.id,
-			requestId,
-			startedAt,
-		});
+			setSnapshot((value) => ({
+				...value,
+				messages: value.messages.map((message) =>
+					message.id === assistantMessage.id
+						? { ...message, status: "error" }
+						: message
+				),
+			}));
+		}
 	};
 
 	const setProviderEnabled = async (enabled: boolean) => {
 		await setSetting(SETTINGS_KEYS.providerEnabled, String(enabled));
 		const nextSnapshot = await refreshRuntime({
-			...snapshot,
+			...snapshotRef.current,
 			providerSettings: {
-				...snapshot.providerSettings,
+				...snapshotRef.current.providerSettings,
 				enabled,
 			},
 		});
 		setSnapshot(nextSnapshot);
+
+		if (enabled) {
+			await startProviderServer();
+			return;
+		}
+
+		await stopProviderServer();
 	};
 
 	const regenerateProviderToken = async () => {
@@ -944,94 +1260,151 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const runProviderTest = async (): Promise<ProviderTestResult> => {
-		const activeModel = snapshot.catalog.find(
-			(model) => model.id === snapshot.activeModelId
+		const current = snapshotRef.current;
+		const activeModel = current.catalog.find(
+			(model) => model.id === current.activeModelId
 		);
 
-		if (!snapshot.providerSettings.enabled) {
+		if (!current.providerSettings.enabled) {
 			const result = {
-				ok: false,
-				endpoint: `${snapshot.providerRuntime.baseUrl}/responses`,
-				summary: "Provider desligado.",
-				responsePreview: null,
+				endpoint: `${current.providerRuntime.baseUrl}/responses`,
 				errorMessage: "Ative a exposição antes de testar o endpoint.",
+				ok: false,
+				responsePreview: null,
+				summary: "Provider desligado.",
 			};
 
 			await appendRequestLog({
-				id: createId("req"),
-				endpoint: "/v1/responses",
-				method: "POST",
-				status: "error",
-				modelId: snapshot.activeModelId,
-				latencyMs: 0,
-				source: "app-api-test",
+				clientAddress: null,
 				createdAt: new Date().toISOString(),
-				summary: result.summary,
+				endpoint: "/v1/responses",
 				errorMessage: result.errorMessage,
+				id: createId("req"),
+				latencyMs: 0,
+				method: "POST",
+				modelId: current.activeModelId,
 				responsePreview: null,
+				source: "app-api-test",
+				status: "error",
+				statusCode: null,
+				summary: result.summary,
 			});
 
 			return result;
+		}
+
+		if (!PROVIDER_SUPPORTED) {
+			return {
+				endpoint: `${current.providerRuntime.baseUrl}/responses`,
+				errorMessage:
+					"Esta build expõe o provider HTTP real apenas no Android nesta etapa.",
+				ok: false,
+				responsePreview: null,
+				summary: "Plataforma experimental para provider HTTP.",
+			};
 		}
 
 		if (!activeModel) {
-			const result = {
-				ok: false,
-				endpoint: `${snapshot.providerRuntime.baseUrl}/responses`,
-				summary: "Sem modelo ativo.",
-				responsePreview: null,
+			return {
+				endpoint: `${current.providerRuntime.baseUrl}/responses`,
 				errorMessage: "Escolha um modelo pronto para testar o provider.",
+				ok: false,
+				responsePreview: null,
+				summary: "Sem modelo ativo.",
+			};
+		}
+
+		const healthUrl = current.providerRuntime.baseUrl.replace(
+			V1_PATH_SUFFIX_REGEX,
+			"/health"
+		);
+		const headers = {
+			Authorization: `Bearer ${current.providerToken}`,
+			"Content-Type": "application/json",
+		};
+		const startedAt = Date.now();
+
+		try {
+			const [healthResponse, modelsResponse, inferenceResponse] =
+				await Promise.all([
+					fetch(healthUrl),
+					fetch(`${current.providerRuntime.baseUrl}/models`, { headers }),
+					fetch(`${current.providerRuntime.baseUrl}/responses`, {
+						body: JSON.stringify({
+							input: "Faça um healthcheck do provider local.",
+							model: activeModel.id,
+							stream: false,
+						}),
+						headers,
+						method: "POST",
+					}),
+				]);
+
+			if (!(healthResponse.ok && modelsResponse.ok && inferenceResponse.ok)) {
+				throw new Error("O endpoint retornou uma resposta HTTP inesperada.");
+			}
+
+			const inferenceJson = (await inferenceResponse.json()) as {
+				output_text?: string;
+			};
+			const responsePreview = truncateText(
+				inferenceJson.output_text ?? "",
+				180
+			);
+			const result = {
+				endpoint: `${current.providerRuntime.baseUrl}/responses`,
+				errorMessage: null,
+				ok: true,
+				responsePreview,
+				summary: `Contrato OpenAI-compatible validado com ${activeModel.displayName}.`,
 			};
 
 			await appendRequestLog({
-				id: createId("req"),
-				endpoint: "/v1/responses",
-				method: "POST",
-				status: "error",
-				modelId: null,
-				latencyMs: 0,
-				source: "app-api-test",
+				clientAddress: null,
 				createdAt: new Date().toISOString(),
+				endpoint: "/v1/responses",
+				errorMessage: null,
+				id: createId("req"),
+				latencyMs: Date.now() - startedAt,
+				method: "POST",
+				modelId: activeModel.id,
+				responsePreview,
+				source: "app-api-test",
+				status: "success",
+				statusCode: 200,
 				summary: result.summary,
-				errorMessage: result.errorMessage,
+			});
+
+			return result;
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Falha ao validar o endpoint.";
+			const result = {
+				endpoint: `${current.providerRuntime.baseUrl}/responses`,
+				errorMessage: message,
+				ok: false,
 				responsePreview: null,
+				summary: "Teste do provider falhou.",
+			};
+
+			await appendRequestLog({
+				clientAddress: null,
+				createdAt: new Date().toISOString(),
+				endpoint: "/v1/responses",
+				errorMessage: message,
+				id: createId("req"),
+				latencyMs: Date.now() - startedAt,
+				method: "POST",
+				modelId: activeModel.id,
+				responsePreview: null,
+				source: "app-api-test",
+				status: "error",
+				statusCode: null,
+				summary: result.summary,
 			});
 
 			return result;
 		}
-
-		const responsePreview = truncateText(
-			createStreamingResponse(
-				"Faça um healthcheck do provider local.",
-				activeModel.displayName
-			),
-			160
-		);
-		const result = {
-			ok: true,
-			endpoint: `${snapshot.providerRuntime.baseUrl}/responses`,
-			summary: `Contrato Open Responses validado com ${activeModel.displayName}.`,
-			responsePreview,
-			errorMessage: snapshot.providerRuntime.transportReady
-				? null
-				: "Teste executado no adapter interno; o transporte HTTP externo ainda está em modo simulado nesta build.",
-		};
-
-		await appendRequestLog({
-			id: createId("req"),
-			endpoint: "/v1/responses",
-			method: "POST",
-			status: "success",
-			modelId: activeModel.id,
-			latencyMs: 180,
-			source: "app-api-test",
-			createdAt: new Date().toISOString(),
-			summary: result.summary,
-			errorMessage: result.errorMessage,
-			responsePreview,
-		});
-
-		return result;
 	};
 
 	const copyToClipboard = async (value: string) => {
@@ -1045,10 +1418,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.onConflictDoUpdate({
 				target: gambiDraftTable.id,
 				set: {
-					roomName: draft.roomName,
-					roomCode: draft.roomCode,
 					credential: draft.credential,
 					modelId: draft.modelId,
+					roomCode: draft.roomCode,
+					roomName: draft.roomName,
 					visibility: draft.visibility,
 				},
 			});
@@ -1060,6 +1433,16 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 		await db.delete(requestLogsTable);
 		setSnapshot((current) => ({ ...current, requestLogs: [] }));
 	};
+
+	useEffect(() => {
+		if (
+			snapshot.isHydrated &&
+			snapshot.providerSettings.enabled &&
+			PROVIDER_SUPPORTED
+		) {
+			runInBackground(startProviderServer());
+		}
+	}, [snapshot.isHydrated, snapshot.providerSettings.enabled]);
 
 	const installedStorageBytes = useMemo(
 		() =>
@@ -1086,29 +1469,29 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	);
 
 	const value = {
-		snapshot,
-		installedStorageBytes,
 		activeConversation,
 		activeConversationMessages,
+		cancelDownload,
+		clearConversation,
+		copyToClipboard,
+		createConversation,
 		hydrateError:
 			snapshotQuery.error instanceof Error ? snapshotQuery.error.message : null,
-		startDownload,
+		installedStorageBytes,
 		pauseDownload,
-		cancelDownload,
-		removeModel,
-		setActiveModel,
-		createConversation,
-		selectConversation,
-		clearConversation,
-		sendMessage,
-		stopGeneration,
-		setProviderEnabled,
 		regenerateProviderToken,
-		runProviderTest,
-		copyToClipboard,
-		saveGambiDraft,
+		removeModel,
 		resetActivity,
-	} satisfies AppDataContextValue;
+		runProviderTest,
+		saveGambiDraft,
+		selectConversation,
+		sendMessage,
+		setActiveModel,
+		setProviderEnabled,
+		snapshot,
+		startDownload,
+		stopGeneration,
+	};
 
 	return (
 		<AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>

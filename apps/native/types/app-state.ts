@@ -20,6 +20,15 @@ export type TransportMode = "simulated" | "native";
 
 export type RequestLogStatus = "success" | "error" | "cancelled";
 
+export type RuntimeStatus =
+	| "unloaded"
+	| "preparing"
+	| "ready"
+	| "generating"
+	| "error";
+
+export type PlatformSupport = "full" | "experimental" | "unsupported";
+
 export type MessageRole = "system" | "user" | "assistant";
 
 export type MessageStatus = "complete" | "streaming" | "aborted" | "error";
@@ -28,8 +37,10 @@ export type GambiVisibility = "private" | "public";
 
 export interface ModelCatalogEntry {
 	approxBytes: number;
+	artifactId: string;
 	capabilities: ProviderCapability[];
 	displayName: string;
+	downloadUrl: string;
 	id: string;
 	minDeviceHint: string;
 	recommended: boolean;
@@ -41,12 +52,18 @@ export interface ModelCatalogEntry {
 }
 
 export interface LocalModelRecord {
+	artifactId: string | null;
 	bytesOnDisk: number;
+	downloadUrl: string | null;
 	errorMessage: string | null;
 	installedAt: string | null;
 	lastUsedAt: string | null;
+	localPath: string | null;
 	modelId: string;
+	preparedAt: string | null;
 	progress: number;
+	resumeData: string | null;
+	runtimeStatus: RuntimeStatus;
 	status: ModelDownloadState;
 	updatedAt: string;
 }
@@ -80,11 +97,15 @@ export interface ProviderRuntimeInfo {
 	baseUrl: string;
 	capabilities: ProviderCapability[];
 	host: string;
+	lastError: string | null;
+	lastStartedAt: string | null;
+	platformSupport: PlatformSupport;
 	transportLabel: string;
 	transportReady: boolean;
 }
 
 export interface ProviderRequestLog {
+	clientAddress: string | null;
 	createdAt: string;
 	endpoint: string;
 	errorMessage: string | null;
@@ -95,6 +116,7 @@ export interface ProviderRequestLog {
 	responsePreview: string | null;
 	source: string;
 	status: RequestLogStatus;
+	statusCode: number | null;
 	summary: string;
 }
 

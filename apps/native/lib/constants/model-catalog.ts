@@ -5,8 +5,12 @@ const GB = 1024 * 1024 * 1024;
 export const MODEL_CATALOG: ModelCatalogEntry[] = [
 	{
 		id: "qwen25-05b",
-		slug: "qwen2.5-0.5b-instruct-q4",
+		slug: "qwen2.5-0.5b-instruct-q4-k-m.gguf",
 		displayName: "Qwen 2.5 0.5B Instruct",
+		artifactId:
+			"Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+		downloadUrl:
+			"https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true",
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Hugging Face",
 		sizeLabel: "0.4 GB",
@@ -19,8 +23,12 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 	},
 	{
 		id: "llama32-1b",
-		slug: "llama-3.2-1b-instruct-q4",
+		slug: "llama-3.2-1b-instruct-q4-k-m.gguf",
 		displayName: "Llama 3.2 1B Instruct",
+		artifactId:
+			"unsloth/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+		downloadUrl:
+			"https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf?download=true",
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Meta community build",
 		sizeLabel: "0.9 GB",
@@ -33,8 +41,12 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 	},
 	{
 		id: "phi35-mini",
-		slug: "phi-3.5-mini-instruct-q4",
+		slug: "phi-3.5-mini-instruct-q4-k-m.gguf",
 		displayName: "Phi 3.5 Mini Instruct",
+		artifactId:
+			"bartowski/Phi-3.5-mini-instruct-GGUF/Phi-3.5-mini-instruct-Q4_K_M.gguf",
+		downloadUrl:
+			"https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf?download=true",
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Microsoft community build",
 		sizeLabel: "2.2 GB",
@@ -47,8 +59,12 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 	},
 	{
 		id: "nomic-embed",
-		slug: "nomic-embed-text-v1.5-q8",
+		slug: "nomic-embed-text-v1.5-f16.gguf",
 		displayName: "Nomic Embed Text v1.5",
+		artifactId:
+			"nomic-ai/nomic-embed-text-v1.5-GGUF/nomic-embed-text-v1.5.f16.gguf",
+		downloadUrl:
+			"https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf?download=true",
 		runtimeFamily: "llama.cpp / embeddings",
 		source: "Nomic community build",
 		sizeLabel: "0.3 GB",

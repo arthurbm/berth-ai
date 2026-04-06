@@ -24,7 +24,7 @@ export default function ApiScreen() {
 		if (!snapshot.providerSettings.enabled) {
 			Alert.alert(
 				"Ativar provider",
-				"O endpoint ficará disponível com token obrigatório. O transporte ainda está em modo simulado nesta build.",
+				"O endpoint ficará disponível com token obrigatório. Nesta etapa, o provider HTTP real é suportado no Android.",
 				[
 					{ text: "Cancelar", style: "cancel" },
 					{
@@ -45,7 +45,7 @@ export default function ApiScreen() {
 		<Container className="px-4 pb-8">
 			<View className="gap-8 py-6">
 				<ScreenSection
-					description="A camada de provider nasce orientada a Responses. O transporte externo ainda está isolado atrás de um adapter simulado."
+					description="A camada de provider expõe Responses como contrato canônico e roda localmente no device."
 					title="Provider Open Responses"
 				>
 					<View className="gap-4 rounded-[28px] bg-surface px-5 py-5">

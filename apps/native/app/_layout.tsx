@@ -1,4 +1,5 @@
 import "@/global.css";
+import "@/lib/ai/polyfills";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { HeroUINativeProvider } from "heroui-native";

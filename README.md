@@ -25,7 +25,18 @@ Then, run the development server:
 pnpm run dev
 ```
 
-Use the Expo Go app to run the mobile application.
+## Native App
+
+The mobile app in `apps/native` now depends on native modules and does not run in Expo Go.
+
+Recommended Android flow:
+
+```bash
+pnpm native:android:device
+pnpm native:dev-client
+```
+
+For the full native development guide, see [docs/native-dev.md](./docs/native-dev.md).
 
 ## Git Hooks and Formatting
 
@@ -45,4 +56,7 @@ berth-ai/
 - `pnpm run build`: Build all applications
 - `pnpm run check-types`: Check TypeScript types across all apps
 - `pnpm run dev:native`: Start the React Native/Expo development server
+- `pnpm run native:dev-client`: Start Metro for the Expo dev client
+- `pnpm run native:android:device`: Build and install the native app on a connected Android device
+- `pnpm run native:android:emulator`: Build and install the native app on the Android emulator
 - `pnpm run check`: Run Biome formatting and linting

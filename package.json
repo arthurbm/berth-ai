@@ -11,6 +11,9 @@
     "build": "turbo build",
     "check-types": "turbo check-types",
     "dev:native": "turbo -F native dev",
+    "native:dev-client": "pnpm --filter native exec expo start --dev-client",
+    "native:android:device": "pnpm --filter native exec expo run:android --device",
+    "native:android:emulator": "pnpm --filter native exec expo run:android",
     "check": "ultracite check",
     "fix": "ultracite fix"
   },
