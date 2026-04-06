@@ -1,62 +1,99 @@
 # berth-ai
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React Native, Expo, and more.
+Local-first mobile app for running GGUF models on-device, chatting with them locally, and exposing an OpenAI-compatible HTTP provider from the phone.
 
-## Features
+The product is designed first as a local provider with a mobile app UX. The built-in chat matters, but the main architectural goal is to turn the device into a reusable inference endpoint.
 
-- **TypeScript** - For type safety and improved developer experience
-- **React Native** - Build mobile apps using React
-- **Expo** - Tools for React Native development
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Biome** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+## What exists today
 
-## Getting Started
+- local download and management of GGUF models
+- on-device inference via `llama.rn` and `@react-native-ai/llama`
+- local chat with persisted conversations
+- local HTTP provider with canonical contract at `/v1/responses`
+- secondary compatibility with `/v1/chat/completions`
+- healthcheck, local token, endpoint test flow, and recent request logs
+- structure prepared for future Gambi integration
 
-First, install the dependencies:
+## Current status and limitations
+
+- The real HTTP provider is supported on Android.
+- On iOS, local chat still works, but the HTTP provider remains experimental and does not start for real.
+- The app depends on native modules and does not run in `Expo Go`.
+- The current catalog includes an embeddings item as a future capability, but this phase is text-first.
+- The `/health` endpoint is open for local discovery; `/v1/*` requires a bearer token.
+
+## Current app navigation
+
+Main tabs:
+
+- `Node`: provider status, URL, token, endpoint test, and recent activity
+- `Models`: catalog, downloads, active model selection, and storage
+- `Chat`: local conversation with the active model
+
+Secondary screens:
+
+- `Gambi`
+- `Settings`
+
+## Running the project
+
+Install dependencies at the repo root:
 
 ```bash
 pnpm install
 ```
 
-Then, run the development server:
-
-```bash
-pnpm run dev
-```
-
-## Native App
-
-The mobile app in `apps/native` now depends on native modules and does not run in Expo Go.
-
-Recommended Android flow:
+Because the app uses native modules, the recommended Android flow is:
 
 ```bash
 pnpm native:android:device
 pnpm native:dev-client
 ```
 
-For the full native development guide, see [docs/native-dev.md](./docs/native-dev.md).
+For the Android emulator:
 
-## Git Hooks and Formatting
-
-- Format and lint fix: `pnpm run check`
-
-## Project Structure
-
+```bash
+pnpm native:android:emulator
 ```
+
+Detailed native development guide:
+
+- [docs/native-dev.md](./docs/native-dev.md)
+
+## Main scripts
+
+At the repo root:
+
+```bash
+pnpm dev
+pnpm build
+pnpm check-types
+pnpm check
+pnpm fix
+pnpm native:dev-client
+pnpm native:android:device
+pnpm native:android:emulator
+```
+
+## Project structure
+
+```text
 berth-ai/
-├── apps/
-│   ├── native/      # Mobile application (React Native, Expo)
+├── apps/native/     # Expo/React Native app with local runtime and HTTP provider
+├── packages/env/    # shared workspace env package
+├── packages/config/ # shared TypeScript config package
+└── docs/            # PRD, implementation plans, and native dev guide
 ```
 
-## Available Scripts
+## Product documentation
 
-- `pnpm run dev`: Start all applications in development mode
-- `pnpm run build`: Build all applications
-- `pnpm run check-types`: Check TypeScript types across all apps
-- `pnpm run dev:native`: Start the React Native/Expo development server
-- `pnpm run native:dev-client`: Start Metro for the Expo dev client
-- `pnpm run native:android:device`: Build and install the native app on a connected Android device
-- `pnpm run native:android:emulator`: Build and install the native app on the Android emulator
-- `pnpm run check`: Run Biome formatting and linting
+- [docs/PRD.md](./docs/PRD.md)
+- [docs/phase-1-implementation-plan.md](./docs/phase-1-implementation-plan.md)
+- [docs/phase-1-part-2-implementation-plan.md](./docs/phase-1-part-2-implementation-plan.md)
+
+## Notes for contributors
+
+- `apps/native` is the current center of the product.
+- Local persistence uses SQLite with Drizzle.
+- The inference runtime and the HTTP provider share the same app state foundation.
+- If you change `llama.rn`, `app.json`, or anything under `apps/native/modules`, rebuild the dev client.

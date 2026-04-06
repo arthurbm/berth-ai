@@ -1,126 +1,98 @@
-# Ultracite Code Standards
+# berth-ai agent notes
+
+## Product
+
+- This repo implements a local-first mobile app that downloads GGUF models, runs on-device inference, and exposes an OpenAI-compatible HTTP provider.
+- Local chat exists, but the core product is the local provider.
+- The product reference document is `docs/PRD.md`.
+
+## Workspace
+
+- Monorepo using `pnpm` and `turbo`.
+- Main app lives in `apps/native`.
+- Current shared packages are `packages/env` and `packages/config`.
+
+## Runtime and platform
+
+- `Expo Go` is not supported for this project.
+- The correct workflow uses Expo Dev Client.
+- `llama.rn`
+- `@react-native-ai/llama`
+- local Expo module at `apps/native/modules/provider-server`
+- The real HTTP provider is Android-first.
+- On iOS, `ProviderServer` exists as a stub and does not start a real server.
+
+## HTTP provider
+
+- Canonical contract: `POST /v1/responses`.
+- Secondary compatibility layer: `POST /v1/chat/completions`.
+- `GET /health`
+- `GET /v1/models`
+- `POST /v1/responses`
+- `POST /v1/chat/completions`
+- `/health` does not require auth.
+- `/v1/*` requires a bearer token.
+- Routing and payload adaptation are handled in TypeScript; the native module handles the socket and bridge layer.
+
+## Models and inference
+
+- The curated catalog currently lives at `apps/native/lib/constants/model-catalog.ts`.
+- Installable models in this phase are text GGUF artifacts downloaded from real Hugging Face URLs.
+- The embeddings item appears in the catalog as a future capability, but it is not part of the main runtime flow yet.
+- Downloads use `expo-file-system/legacy` with pause and resume through `resumeData`.
+- The local inference runtime lives at `apps/native/lib/inference/native-runtime.ts`.
+
+## Local persistence
+
+- Local persistence uses SQLite with Drizzle.
+- `settings`
+- `local_models`
+- `conversations`
+- `messages`
+- `request_logs`
+- `gambi_draft`
+- The provider token is stored in Secure Store, not SQLite.
+
+## Navigation and state
+
+- Main app state flows through `apps/native/providers/app-data-provider.tsx`.
+- The current worktree uses `Node`, `Models`, and `Chat` tabs.
+- `Gambi` and `Settings` are secondary screens.
+- Older phase 1 plans still mention `Home`, `API`, and `Activity`; use the current worktree shape when documenting or continuing implementation.
+
+## Useful commands
+
+- `pnpm native:android:device`
+- `pnpm native:android:emulator`
+- `pnpm native:dev-client`
+- `pnpm check`
+- `pnpm fix`
+
+## Useful discoveries
+
+- If you change anything in `apps/native/modules`, `app.json`, or native dependencies, rebuild the dev client.
+- The provider shuts down when the app goes to the background and only restarts on foreground if it is still enabled and the platform supports it.
+- The provider `baseUrl` stored in app state includes `/v1`, but the real health route is still `/health`.
+
+## Ultracite Code Standards
 
 This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
 
-## Quick Reference
+### Quick Reference
 
 - **Format code**: `pnpm dlx ultracite fix`
 - **Check for issues**: `pnpm dlx ultracite check`
 - **Diagnose setup**: `pnpm dlx ultracite doctor`
 
-Biome (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
-
----
-
-## Core Principles
-
-Write code that is **accessible, performant, type-safe, and maintainable**. Focus on clarity and explicit intent over brevity.
-
-### Type Safety & Explicitness
-
-- Use explicit types for function parameters and return values when they enhance clarity
-- Prefer `unknown` over `any` when the type is genuinely unknown
-- Use const assertions (`as const`) for immutable values and literal types
-- Leverage TypeScript's type narrowing instead of type assertions
-- Use meaningful variable names instead of magic numbers - extract constants with descriptive names
-
-### Modern JavaScript/TypeScript
-
-- Use arrow functions for callbacks and short functions
-- Prefer `for...of` loops over `.forEach()` and indexed `for` loops
-- Use optional chaining (`?.`) and nullish coalescing (`??`) for safer property access
-- Prefer template literals over string concatenation
-- Use destructuring for object and array assignments
-- Use `const` by default, `let` only when reassignment is needed, never `var`
-
-### Async & Promises
-
-- Always `await` promises in async functions - don't forget to use the return value
-- Use `async/await` syntax instead of promise chains for better readability
-- Handle errors appropriately in async code with try-catch blocks
-- Don't use async functions as Promise executors
-
-### React & JSX
-
-- Use function components over class components
-- Call hooks at the top level only, never conditionally
-- Specify all dependencies in hook dependency arrays correctly
-- Use the `key` prop for elements in iterables (prefer unique IDs over array indices)
-- Nest children between opening and closing tags instead of passing as props
-- Don't define components inside other components
-- Use semantic HTML and ARIA attributes for accessibility:
-  - Provide meaningful alt text for images
-  - Use proper heading hierarchy
-  - Add labels for form inputs
-  - Include keyboard event handlers alongside mouse events
-  - Use semantic elements (`<button>`, `<nav>`, etc.) instead of divs with roles
-
-### Error Handling & Debugging
-
-- Remove `console.log`, `debugger`, and `alert` statements from production code
-- Throw `Error` objects with descriptive messages, not strings or other values
-- Use `try-catch` blocks meaningfully - don't catch errors just to rethrow them
-- Prefer early returns over nested conditionals for error cases
-
-### Code Organization
-
-- Keep functions focused and under reasonable cognitive complexity limits
-- Extract complex conditions into well-named boolean variables
-- Use early returns to reduce nesting
-- Prefer simple conditionals over nested ternary operators
-- Group related code together and separate concerns
-
-### Security
-
-- Add `rel="noopener"` when using `target="_blank"` on links
-- Avoid `dangerouslySetInnerHTML` unless absolutely necessary
-- Don't use `eval()` or assign directly to `document.cookie`
-- Validate and sanitize user input
-
-### Performance
-
-- Avoid spread syntax in accumulators within loops
-- Use top-level regex literals instead of creating them in loops
-- Prefer specific imports over namespace imports
-- Avoid barrel files (index files that re-export everything)
-- Use proper image components (e.g., Next.js `<Image>`) over `<img>` tags
-
-### Framework-Specific Guidance
-
-**Next.js:**
-
-- Use Next.js `<Image>` component for images
-- Use `next/head` or App Router metadata API for head elements
-- Use Server Components for async data fetching instead of async Client Components
-
-**React 19+:**
-
-- Use ref as a prop instead of `React.forwardRef`
-
-**Solid/Svelte/Vue/Qwik:**
-
-- Use `class` and `for` attributes (not `className` or `htmlFor`)
-
----
-
-## Testing
-
-- Write assertions inside `it()` or `test()` blocks
-- Avoid done callbacks in async tests - use async/await instead
-- Don't use `.only` or `.skip` in committed code
-- Keep test suites reasonably flat - avoid excessive `describe` nesting
+Biome is the underlying engine for formatting and linting. Most common issues are automatically fixable.
 
 ## When Biome Can't Help
 
-Biome's linter will catch most issues automatically. Focus your attention on:
+Biome can catch formatting and many lint issues, but it does not validate product correctness. Pay extra attention to:
 
-1. **Business logic correctness** - Biome can't validate your algorithms
-2. **Meaningful naming** - Use descriptive names for functions, variables, and types
-3. **Architecture decisions** - Component structure, data flow, and API design
-4. **Edge cases** - Handle boundary conditions and error states
-5. **User experience** - Accessibility, performance, and usability considerations
-6. **Documentation** - Add comments for complex logic, but prefer self-documenting code
-
----
-
-Most formatting and common issues are automatically fixed by Biome. Run `pnpm dlx ultracite fix` before committing to ensure compliance.
+1. **Business logic correctness**: inference flow, provider behavior, auth checks, and request adaptation.
+2. **Meaningful naming**: use names that reflect runtime state, provider semantics, and model lifecycle clearly.
+3. **Architecture decisions**: keep route files in `app/` and product logic in providers, libs, hooks, and stores.
+4. **Edge cases**: background transitions, missing model files, invalid tokens, interrupted downloads, and unsupported platform behavior.
+5. **User experience**: operational clarity matters more than flashy UI; the app should make provider state, model state, and failure modes obvious.
+6. **Documentation**: keep repo-specific facts in this file and human-facing usage guidance in `README.md`.
