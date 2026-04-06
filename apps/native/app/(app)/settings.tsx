@@ -1,56 +1,135 @@
-import { Button, Chip } from "heroui-native";
-import { Text, View } from "react-native";
+import { ImpactFeedbackStyle, impactAsync } from "expo-haptics";
+import { Chip, ListGroup, Separator, Switch, useToast } from "heroui-native";
+import { Platform, Text, View } from "react-native";
+import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { Container } from "@/components/container";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ScreenSection } from "@/components/ui/screen-section";
+import { useAppTheme } from "@/contexts/app-theme-context";
 import { useAppData } from "@/hooks/use-app-data";
 
 export default function SettingsScreen() {
 	const { snapshot, regenerateProviderToken, resetActivity } = useAppData();
+	const { isDark, toggleTheme } = useAppTheme();
+	const { toast } = useToast();
+
+	const haptic = () => {
+		if (Platform.OS === "ios") {
+			impactAsync(ImpactFeedbackStyle.Light).catch(() => undefined);
+		}
+	};
+
+	const handleRegenToken = async () => {
+		await regenerateProviderToken();
+		haptic();
+		toast.show({ variant: "warning", label: "Token regenerado" });
+	};
+
+	const handleClearActivity = async () => {
+		await resetActivity();
+		haptic();
+		toast.show({ variant: "default", label: "Atividade limpa" });
+	};
 
 	return (
 		<Container className="px-4 pb-8">
-			<View className="gap-8 py-6">
-				<ScreenSection
-					description="Manutenção local e leitura de ambiente."
-					noSeparator
-					title="Ajustes rápidos"
-				>
-					<View className="gap-4 rounded-[28px] bg-surface px-5 py-5">
-						<View className="flex-row items-center justify-between">
-							<View className="gap-1">
-								<Text className="font-semibold text-foreground text-lg">
-									Tema
-								</Text>
-								<Text className="text-muted text-sm">
-									Alterna o tema atual do app.
-								</Text>
-							</View>
-							<ThemeToggle />
-						</View>
+			<View className="gap-6 py-4">
+				<Animated.View entering={FadeInUp.duration(350)}>
+					<ListGroup>
+						<ListGroup.Item
+							onPress={() => {
+								haptic();
+								toggleTheme();
+							}}
+						>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle>Tema</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									{isDark ? "Escuro" : "Claro"}
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+							<Switch
+								isSelected={isDark}
+								onSelectedChange={() => {
+									haptic();
+									toggleTheme();
+								}}
+							/>
+						</ListGroup.Item>
+						<Separator className="mx-4" />
+						<ListGroup.Item>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle>Transporte</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									{snapshot.providerRuntime.transportLabel}
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+						</ListGroup.Item>
+						<Separator className="mx-4" />
+						<ListGroup.Item>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle>Porta</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									{String(snapshot.providerSettings.port)}
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+						</ListGroup.Item>
+						<Separator className="mx-4" />
+						<ListGroup.Item>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle>Exposicao</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									{snapshot.providerSettings.exposureMode}
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+						</ListGroup.Item>
+					</ListGroup>
+				</Animated.View>
 
+				<Animated.View entering={FadeInUp.delay(60).duration(350)}>
+					<ListGroup>
+						<ListGroup.Item onPress={handleRegenToken}>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle>Regenerar token</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									Gera um novo Bearer token para o provider
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+							<ListGroup.ItemSuffix />
+						</ListGroup.Item>
+						<Separator className="mx-4" />
+						<ListGroup.Item onPress={handleClearActivity}>
+							<ListGroup.ItemContent>
+								<ListGroup.ItemTitle className="text-danger">
+									Limpar atividade
+								</ListGroup.ItemTitle>
+								<ListGroup.ItemDescription>
+									Remove todo o historico de requests
+								</ListGroup.ItemDescription>
+							</ListGroup.ItemContent>
+							<ListGroup.ItemSuffix />
+						</ListGroup.Item>
+					</ListGroup>
+				</Animated.View>
+
+				<Animated.View entering={FadeInUp.delay(120).duration(350)}>
+					<View className="gap-2 px-2">
+						<Text className="text-muted text-xs uppercase tracking-[1.4px]">
+							Plataforma
+						</Text>
 						<View className="flex-row flex-wrap gap-2">
 							<Chip size="sm" variant="soft">
 								<Chip.Label>
-									{snapshot.providerRuntime.transportLabel}
+									{snapshot.providerRuntime.platformSupport}
 								</Chip.Label>
 							</Chip>
 							<Chip size="sm" variant="soft">
-								<Chip.Label>{`Porta ${snapshot.providerSettings.port}`}</Chip.Label>
+								<Chip.Label>
+									{snapshot.providerSettings.transportMode}
+								</Chip.Label>
 							</Chip>
 						</View>
-
-						<View className="flex-row flex-wrap gap-3">
-							<Button onPress={regenerateProviderToken} variant="secondary">
-								<Button.Label>Regenerar token</Button.Label>
-							</Button>
-							<Button onPress={resetActivity} variant="tertiary">
-								<Button.Label>Limpar atividade</Button.Label>
-							</Button>
-						</View>
 					</View>
-				</ScreenSection>
+				</Animated.View>
 			</View>
 		</Container>
 	);

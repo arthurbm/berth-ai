@@ -18,7 +18,11 @@ export function HeroPanel({
 	actions,
 }: HeroPanelProps) {
 	return (
-		<Surface className="rounded-[28px] px-5 py-6" variant="secondary">
+		<Surface
+			className="rounded-[28px] px-5 py-6"
+			style={{ borderCurve: "continuous" }}
+			variant="secondary"
+		>
 			<View className="gap-5">
 				<View className="gap-2">
 					<Text className="text-muted text-xs uppercase tracking-[1.8px]">

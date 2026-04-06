@@ -1,79 +1,37 @@
-import { Ionicons } from "@expo/vector-icons";
-import { Drawer } from "expo-router/drawer";
+import { Stack } from "expo-router";
 import { useThemeColor } from "heroui-native";
-import { Text } from "react-native";
-
-import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function AppLayout() {
 	const themeColorForeground = useThemeColor("foreground");
 	const themeColorBackground = useThemeColor("background");
 
 	return (
-		<Drawer
+		<Stack
 			screenOptions={{
 				headerTintColor: themeColorForeground,
 				headerStyle: { backgroundColor: themeColorBackground },
 				headerTitleStyle: { color: themeColorForeground, fontWeight: "600" },
-				drawerStyle: { backgroundColor: themeColorBackground },
-				headerRight: () => <ThemeToggle />,
 			}}
 		>
-			<Drawer.Screen
-				name="(tabs)"
-				options={{
-					title: "Workspace",
-					headerShown: false,
-					drawerLabel: ({ focused, color }) => (
-						<Text style={{ color: focused ? color : themeColorForeground }}>
-							Workspace
-						</Text>
-					),
-					drawerIcon: ({ focused, color, size }) => (
-						<Ionicons
-							color={focused ? color : themeColorForeground}
-							name="grid-outline"
-							size={size}
-						/>
-					),
-				}}
-			/>
-			<Drawer.Screen
+			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+			<Stack.Screen
 				name="gambi"
 				options={{
 					title: "Gambi",
-					drawerLabel: ({ focused, color }) => (
-						<Text style={{ color: focused ? color : themeColorForeground }}>
-							Gambi
-						</Text>
-					),
-					drawerIcon: ({ focused, color, size }) => (
-						<Ionicons
-							color={focused ? color : themeColorForeground}
-							name="planet-outline"
-							size={size}
-						/>
-					),
+					presentation: "formSheet",
+					sheetGrabberVisible: true,
+					sheetAllowedDetents: [0.85, 1.0],
 				}}
 			/>
-			<Drawer.Screen
+			<Stack.Screen
 				name="settings"
 				options={{
 					title: "Ajustes",
-					drawerLabel: ({ focused, color }) => (
-						<Text style={{ color: focused ? color : themeColorForeground }}>
-							Ajustes
-						</Text>
-					),
-					drawerIcon: ({ focused, color, size }) => (
-						<Ionicons
-							color={focused ? color : themeColorForeground}
-							name="settings-outline"
-							size={size}
-						/>
-					),
+					presentation: "formSheet",
+					sheetGrabberVisible: true,
+					sheetAllowedDetents: [0.75, 1.0],
 				}}
 			/>
-		</Drawer>
+		</Stack>
 	);
 }

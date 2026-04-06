@@ -3,3 +3,8 @@
 @import "heroui-native/styles";
 
 @source "./node_modules/heroui-native/lib";
+
+@theme {
+	--color-accent: oklch(0.78 0.16 75);
+	--color-accent-foreground: oklch(0.15 0.02 75);
+}
