@@ -1,0 +1,30 @@
+{
+  "name": "berth-ai",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:native": "turbo -F native dev",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  },
+  "dependencies": {
+    "@berth-ai/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@berth-ai/config": "workspace:*",
+    "@biomejs/biome": "2.4.10",
+    "turbo": "^2.8.12",
+    "typescript": "catalog:",
+    "ultracite": "7.4.3"
+  },
+  "packageManager": "pnpm@10.30.3"
+}

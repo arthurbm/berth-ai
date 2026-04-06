@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "scheme": "berth-ai",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "bundler": "metro"
+    },
+    "name": "berth-ai",
+    "slug": "berth-ai",
+    "plugins": ["expo-font"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
