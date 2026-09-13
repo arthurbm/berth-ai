@@ -1,3 +1,5 @@
+import { type LlamaLanguageModel, llama } from "@react-native-ai/llama";
+import { type FinishReason, type ModelMessage, streamText } from "ai";
 import {
 	createDownloadResumable,
 	type DownloadPauseState,
@@ -8,15 +10,10 @@ import {
 	getInfoAsync,
 	makeDirectoryAsync,
 } from "expo-file-system/legacy";
-import {
-	type CompletionParams,
-	initLlama,
-	type LlamaContext,
-	type RNLlamaOAICompatibleMessage,
-} from "llama.rn";
 
 import type {
 	ConversationMessage,
+	GenerationSettings,
 	LocalModelRecord,
 	ModelCatalogEntry,
 	RuntimeStatus,
@@ -35,6 +32,13 @@ const DEFAULT_STOP_WORDS = [
 ];
 
 const MODELS_DIRECTORY = `${documentDirectory ?? ""}models/`;
+
+const DEFAULT_GENERATION_SETTINGS = {
+	maxOutputTokens: 512,
+	temperature: 0.7,
+} satisfies Required<
+	Pick<GenerationSettings, "maxOutputTokens" | "temperature">
+>;
 
 export interface DownloadCallbacks {
 	onComplete: (result: {
@@ -57,6 +61,7 @@ export interface GenerateCallbacks {
 export interface GenerateInput {
 	conversationMessages: ConversationMessage[];
 	generationKey: string;
+	generationSettings?: GenerationSettings;
 	model: ModelCatalogEntry;
 	prompt: string;
 }
@@ -84,10 +89,10 @@ function modelFileUri(entry: ModelCatalogEntry) {
 	return `${MODELS_DIRECTORY}${entry.slug}`;
 }
 
-function buildMessages(input: GenerateInput): RNLlamaOAICompatibleMessage[] {
+function buildMessages(input: GenerateInput): ModelMessage[] {
 	const history = input.conversationMessages
 		.filter((message) => message.status !== "error")
-		.map<RNLlamaOAICompatibleMessage>((message) => ({
+		.map<ModelMessage>((message) => ({
 			content: message.content,
 			role: message.role,
 		}));
@@ -99,13 +104,34 @@ function buildMessages(input: GenerateInput): RNLlamaOAICompatibleMessage[] {
 	return [{ content: input.prompt, role: "user" }];
 }
 
+function buildGenerationSettings(input: GenerateInput) {
+	return {
+		...DEFAULT_GENERATION_SETTINGS,
+		...input.model.generationDefaults,
+		...input.generationSettings,
+	};
+}
+
+function mapFinishReason(reason: FinishReason): GenerateResult["finishReason"] {
+	if (reason === "length") {
+		return "length";
+	}
+
+	if (reason === "error") {
+		return "error";
+	}
+
+	return "stop";
+}
+
 function runCallback(task: Promise<void> | void) {
 	Promise.resolve(task).catch(() => undefined);
 }
 
 export class NativeInferenceRuntime {
-	private activeContext: LlamaContext | null = null;
+	private activeLanguageModel: LlamaLanguageModel | null = null;
 	private activeModelId: string | null = null;
+	private activeAbortController: AbortController | null = null;
 	private readonly downloadTasks = new Map<string, DownloadResumable>();
 	private currentGenerationKey: string | null = null;
 
@@ -244,85 +270,99 @@ export class NativeInferenceRuntime {
 			throw new Error("O arquivo do modelo não está disponível no device.");
 		}
 
-		if (this.activeContext && this.activeModelId === entry.id) {
-			return this.activeContext;
+		if (this.activeLanguageModel && this.activeModelId === entry.id) {
+			return this.activeLanguageModel;
 		}
 
 		await this.unloadModel();
 
-		const context = await initLlama({
-			model: installed.localPath,
-			n_ctx: 4096,
-			n_gpu_layers: 99,
-			use_mlock: true,
+		const languageModel = llama.languageModel(installed.localPath, {
+			contextParams: {
+				n_ctx: 4096,
+				n_gpu_layers: 99,
+				use_mlock: true,
+			},
 		});
 
-		this.activeContext = context;
+		await languageModel.prepare();
+
+		this.activeLanguageModel = languageModel;
 		this.activeModelId = entry.id;
 
-		return context;
+		return languageModel;
 	}
 
 	async unloadModel() {
-		if (this.activeContext) {
-			await this.activeContext.release();
+		if (this.activeAbortController) {
+			this.activeAbortController.abort();
 		}
 
-		this.activeContext = null;
+		if (this.activeLanguageModel) {
+			await this.activeLanguageModel.unload();
+		}
+
+		this.activeLanguageModel = null;
 		this.activeModelId = null;
+		this.activeAbortController = null;
 		this.currentGenerationKey = null;
 	}
 
 	async stopGeneration(generationKey: string) {
-		if (!this.activeContext || this.currentGenerationKey !== generationKey) {
+		if (
+			!this.activeAbortController ||
+			this.currentGenerationKey !== generationKey
+		) {
 			return;
 		}
 
-		await this.activeContext.stopCompletion();
+		this.activeAbortController.abort();
+		await this.activeLanguageModel?.getContext()?.stopCompletion();
 	}
 
 	async generate(
 		input: GenerateInput,
 		callbacks: GenerateCallbacks
 	): Promise<GenerateResult> {
-		const context = await this.prepareModel(input.model);
+		const languageModel = await this.prepareModel(input.model);
 
 		await callbacks.onRuntimeStatusChange?.("generating");
-		await context.clearCache(false);
+		await languageModel.getContext()?.clearCache(false);
 
 		const startedAt = Date.now();
 		this.currentGenerationKey = input.generationKey;
+		const abortController = new AbortController();
+		this.activeAbortController = abortController;
 		let text = "";
 
-		const completionParams: CompletionParams = {
-			messages: buildMessages(input),
-			n_predict: 512,
-			stop: DEFAULT_STOP_WORDS,
-			temperature: 0.7,
-		};
-
 		try {
-			const result = await context.completion(completionParams, (tokenData) => {
-				const delta =
-					tokenData.content ??
-					tokenData.reasoning_content ??
-					tokenData.token ??
-					"";
+			const generationSettings = buildGenerationSettings(input);
+			const result = streamText({
+				abortSignal: abortController.signal,
+				maxOutputTokens: generationSettings.maxOutputTokens,
+				maxRetries: 0,
+				messages: buildMessages(input),
+				model: languageModel,
+				stopSequences: DEFAULT_STOP_WORDS,
+				temperature: generationSettings.temperature,
+				topK: generationSettings.topK,
+				topP: generationSettings.topP,
+			});
 
+			for await (const delta of result.textStream) {
 				if (!delta) {
-					return;
+					continue;
 				}
 
 				text += delta;
 				runCallback(callbacks.onDelta(delta));
-			});
+			}
 
-			const responseText = result.text?.trim() || text.trim();
+			const finishReason = await result.finishReason;
 
 			return {
-				finishReason: result.stopped_limit ? "length" : "stop",
+				finishReason: mapFinishReason(finishReason),
 				latencyMs: Date.now() - startedAt,
-				responseText,
+				responseText: text.trim(),
 			};
 		} catch (error) {
 			await callbacks.onRuntimeStatusChange?.("error");
@@ -330,7 +370,12 @@ export class NativeInferenceRuntime {
 				error instanceof Error ? error.message : "Falha na inferência local.";
 			throw new Error(message);
 		} finally {
-			this.currentGenerationKey = null;
+			if (this.activeAbortController === abortController) {
+				this.activeAbortController = null;
+			}
+			if (this.currentGenerationKey === input.generationKey) {
+				this.currentGenerationKey = null;
+			}
 			await callbacks.onRuntimeStatusChange?.("ready");
 		}
 	}

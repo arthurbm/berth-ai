@@ -15,5 +15,5 @@ export default function ConversationScreen() {
 		}
 	}, [conversationId, selectConversation]);
 
-	return <ChatScreen />;
+	return <ChatScreen hasStackHeader />;
 }

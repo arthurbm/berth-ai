@@ -38,7 +38,11 @@
       "reactCompiler": true
     },
     "android": {
-      "package": "com.arthurbm32.berthai"
+      "package": "com.arthurbm32.berthai",
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "ios": {
+      "bundleIdentifier": "com.arthurbm32.berthai"
     }
   }
 }

@@ -35,12 +35,20 @@ export type MessageStatus = "complete" | "streaming" | "aborted" | "error";
 
 export type GambiVisibility = "private" | "public";
 
+export interface GenerationSettings {
+	maxOutputTokens?: number;
+	temperature?: number;
+	topK?: number;
+	topP?: number;
+}
+
 export interface ModelCatalogEntry {
 	approxBytes: number;
 	artifactId: string;
 	capabilities: ProviderCapability[];
 	displayName: string;
 	downloadUrl: string;
+	generationDefaults?: GenerationSettings;
 	id: string;
 	minDeviceHint: string;
 	recommended: boolean;

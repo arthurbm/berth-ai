@@ -20,6 +20,7 @@ import type {
 import type {
 	AppSnapshot,
 	ConversationMessage,
+	GenerationSettings,
 	MessageRole,
 	ModelCatalogEntry,
 	ProviderRequestLog,
@@ -59,6 +60,7 @@ interface RequestLogBase {
 }
 
 interface InferenceInput {
+	generationSettings: GenerationSettings;
 	prompt: string;
 	providerMessages: ConversationMessage[];
 	stream: boolean;
@@ -180,6 +182,47 @@ function extractConversationMessagesFromChat(
 	});
 }
 
+function numberFromBody(body: Record<string, unknown>, key: string) {
+	const value = body[key];
+
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
+function positiveIntegerFromBody(body: Record<string, unknown>, key: string) {
+	const value = numberFromBody(body, key);
+
+	if (value === undefined) {
+		return undefined;
+	}
+
+	const parsed = Math.floor(value);
+
+	return parsed > 0 ? parsed : undefined;
+}
+
+function samplingNumberFromBody(body: Record<string, unknown>, key: string) {
+	const value = numberFromBody(body, key);
+
+	return value === undefined || value < 0 ? undefined : value;
+}
+
+function extractGenerationSettings(
+	request: ProviderServerIncomingRequest,
+	body: Record<string, unknown>
+): GenerationSettings {
+	return {
+		maxOutputTokens:
+			request.path === CHAT_COMPLETIONS_PATH
+				? positiveIntegerFromBody(body, "max_tokens")
+				: positiveIntegerFromBody(body, "max_output_tokens"),
+		temperature: samplingNumberFromBody(body, "temperature"),
+		topK: positiveIntegerFromBody(body, "top_k"),
+		topP: samplingNumberFromBody(body, "top_p"),
+	};
+}
+
 function extractInferenceInput(
 	request: ProviderServerIncomingRequest,
 	body: Record<string, unknown>
@@ -195,6 +238,7 @@ function extractInferenceInput(
 			: extractPromptFromResponsesBody(body);
 
 	return {
+		generationSettings: extractGenerationSettings(request, body),
 		prompt,
 		providerMessages,
 		stream,
@@ -396,10 +440,8 @@ async function handleInferenceRequest(
 	startedAt: number
 ) {
 	const parsedBody = parseJsonBody(options.request.body);
-	const { prompt, providerMessages, stream } = extractInferenceInput(
-		options.request,
-		parsedBody
-	);
+	const { generationSettings, prompt, providerMessages, stream } =
+		extractInferenceInput(options.request, parsedBody);
 
 	if (!prompt.trim()) {
 		await respondWithError(
@@ -426,6 +468,7 @@ async function handleInferenceRequest(
 		{
 			conversationMessages: providerMessages,
 			generationKey: `provider:${options.request.requestId}`,
+			generationSettings,
 			model: activeModel,
 			prompt,
 		},

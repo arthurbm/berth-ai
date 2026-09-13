@@ -1,24 +1,28 @@
+import {
+	TextDecoderStream as TextDecoderStreamPolyfill,
+	TextEncoderStream as TextEncoderStreamPolyfill,
+} from "@stardazed/streams-text-encoding";
 import structuredClonePolyfill from "@ungap/structured-clone";
 import { TextDecoder, TextEncoder } from "text-encoding";
 
-declare global {
-	interface Global {
-		structuredClone?: typeof structuredClonePolyfill;
-		TextDecoder?: typeof TextDecoder;
-		TextEncoder?: typeof TextEncoder;
-	}
+const globals = globalThis as Record<string, unknown>;
+
+if (!globals.structuredClone) {
+	globals.structuredClone = structuredClonePolyfill;
 }
 
-if (!globalThis.structuredClone) {
-	globalThis.structuredClone = structuredClonePolyfill;
+if (!globals.TextEncoder) {
+	globals.TextEncoder = TextEncoder;
 }
 
-if (!globalThis.TextEncoder) {
-	globalThis.TextEncoder =
-		TextEncoder as unknown as typeof globalThis.TextEncoder;
+if (!globals.TextDecoder) {
+	globals.TextDecoder = TextDecoder;
 }
 
-if (!globalThis.TextDecoder) {
-	globalThis.TextDecoder =
-		TextDecoder as unknown as typeof globalThis.TextDecoder;
+if (!globals.TextEncoderStream) {
+	globals.TextEncoderStream = TextEncoderStreamPolyfill;
+}
+
+if (!globals.TextDecoderStream) {
+	globals.TextDecoderStream = TextDecoderStreamPolyfill;
 }

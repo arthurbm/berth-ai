@@ -10,7 +10,7 @@ import {
 	useThemeColor,
 } from "heroui-native";
 import { useRef } from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
 import { Container } from "@/components/container";
@@ -85,7 +85,7 @@ function MessageBubble({
 	);
 }
 
-export default function ChatScreen() {
+export default function ChatScreen({ hasStackHeader = false }: { hasStackHeader?: boolean } = {}) {
 	const {
 		snapshot,
 		activeConversation,
@@ -130,7 +130,11 @@ export default function ChatScreen() {
 	};
 
 	return (
-		<Container className="bg-background" isScrollable={false}>
+		<Container className="bg-background" isScrollable={false} style={{ paddingBottom: 0, paddingTop: hasStackHeader ? 0 : undefined }}>
+			<KeyboardAvoidingView
+				behavior={Platform.OS === "ios" ? "padding" : undefined}
+				style={{ flex: 1 }}
+			>
 			<View className="flex-1 gap-3 px-4 pt-3 pb-3">
 				{/* Header */}
 				<View className="flex-row items-center justify-between gap-3">
@@ -206,28 +210,28 @@ export default function ChatScreen() {
 				>
 					{activeConversation ? (
 						<ScrollView
+							contentContainerStyle={{ gap: 12, paddingBottom: 16 }}
 							contentInsetAdjustmentBehavior="automatic"
 							onContentSizeChange={() =>
 								scrollRef.current?.scrollToEnd({ animated: true })
 							}
 							ref={scrollRef}
+							style={{ flex: 1 }}
 						>
-							<View className="gap-3 pb-4">
-								{activeConversationMessages.map((message) => (
-									<MessageBubble
-										accentColor={accentColor}
-										key={message.id}
-										message={message}
-									/>
-								))}
+							{activeConversationMessages.map((message) => (
+								<MessageBubble
+									accentColor={accentColor}
+									key={message.id}
+									message={message}
+								/>
+							))}
 
-								{activeConversationMessages.length === 0 ? (
-									<EmptyState
-										description="Envie uma mensagem para comecar."
-										title="Conversa pronta"
-									/>
-								) : null}
-							</View>
+							{activeConversationMessages.length === 0 ? (
+								<EmptyState
+									description="Envie uma mensagem para comecar."
+									title="Conversa pronta"
+								/>
+							) : null}
 						</ScrollView>
 					) : (
 						<EmptyState
@@ -293,6 +297,7 @@ export default function ChatScreen() {
 					</View>
 				</View>
 			</View>
+			</KeyboardAvoidingView>
 		</Container>
 	);
 }

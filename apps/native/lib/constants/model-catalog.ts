@@ -11,6 +11,12 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 			"Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf",
 		downloadUrl:
 			"https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=true",
+		generationDefaults: {
+			maxOutputTokens: 512,
+			temperature: 0.7,
+			topK: 20,
+			topP: 0.8,
+		},
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Hugging Face",
 		sizeLabel: "0.4 GB",
@@ -29,6 +35,10 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 			"unsloth/Llama-3.2-1B-Instruct-GGUF/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
 		downloadUrl:
 			"https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf?download=true",
+		generationDefaults: {
+			maxOutputTokens: 512,
+			temperature: 0.7,
+		},
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Meta community build",
 		sizeLabel: "0.9 GB",
@@ -47,6 +57,10 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
 			"bartowski/Phi-3.5-mini-instruct-GGUF/Phi-3.5-mini-instruct-Q4_K_M.gguf",
 		downloadUrl:
 			"https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf?download=true",
+		generationDefaults: {
+			maxOutputTokens: 512,
+			temperature: 0.7,
+		},
 		runtimeFamily: "llama.cpp / GGUF",
 		source: "Microsoft community build",
 		sizeLabel: "2.2 GB",
