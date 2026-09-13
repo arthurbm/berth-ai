@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.arthurbm32.berthai",
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": {
       "bundleIdentifier": "com.arthurbm32.berthai"
