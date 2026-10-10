@@ -74,6 +74,20 @@
 - The provider shuts down when the app goes to the background and only restarts on foreground if it is still enabled and the platform supports it.
 - The provider `baseUrl` stored in app state includes `/v1`, but the real health route is still `/health`.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `arthurbm/berth-ai`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created lazily. See `docs/agents/domain.md`.
+
 ## Ultracite Code Standards
 
 This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
