@@ -47,6 +47,7 @@ export default function ChatScreen() {
 					value={chatActiveSegment}
 				>
 					<Tabs.List>
+						<Tabs.Indicator />
 						<Tabs.Trigger className="flex-1" value="conversa">
 							<Tabs.Label>Conversa</Tabs.Label>
 						</Tabs.Trigger>
@@ -54,7 +55,6 @@ export default function ChatScreen() {
 						<Tabs.Trigger className="flex-1" value="historico">
 							<Tabs.Label>Historico</Tabs.Label>
 						</Tabs.Trigger>
-						<Tabs.Indicator />
 					</Tabs.List>
 
 					<Tabs.Content className="flex-1" value="conversa">

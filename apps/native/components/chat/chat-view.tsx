@@ -1,7 +1,8 @@
 import { ImpactFeedbackStyle, impactAsync } from "expo-haptics";
 import { useThemeColor } from "heroui-native";
 import { useRef } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppData } from "@/hooks/use-app-data";
@@ -48,7 +49,8 @@ export function ChatView() {
 
 	return (
 		<KeyboardAvoidingView
-			behavior={Platform.OS === "ios" ? "padding" : undefined}
+			automaticOffset
+			behavior="padding"
 			style={{ flex: 1 }}
 		>
 			<View className="flex-1 gap-3">
