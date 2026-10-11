@@ -8,9 +8,9 @@ type MonospaceTextProps = TextProps & {
 };
 
 const fontMap = {
-	regular: fonts.mono,
-	medium: fonts.monoMedium,
 	bold: fonts.monoBold,
+	medium: fonts.monoMedium,
+	regular: fonts.mono,
 } as const;
 
 export function MonospaceText({

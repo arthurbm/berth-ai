@@ -5,7 +5,6 @@ import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppData } from "@/hooks/use-app-data";
-import { getActiveModel } from "@/lib/utils/selectors";
 import { useAppUiStore } from "@/stores/app-ui-store";
 
 import { ChatInput } from "./chat-input";
@@ -13,19 +12,17 @@ import { MessageBubble } from "./message-bubble";
 
 export function ChatView() {
 	const {
-		snapshot,
 		activeConversation,
 		activeConversationMessages,
 		sendMessage,
 		stopGeneration,
 	} = useAppData();
 	const { chatDraft: prompt, setChatDraft: setPrompt } = useAppUiStore();
-	const activeModel = getActiveModel(snapshot);
 	const canSend = prompt.trim().length > 0 && Boolean(activeConversation?.id);
 	const accentColor = useThemeColor("accent");
 	const scrollRef = useRef<ScrollView>(null);
 	const isStreaming = activeConversationMessages.some(
-		(m) => m.status === "streaming",
+		(m) => m.status === "streaming"
 	);
 
 	const handleSend = async () => {

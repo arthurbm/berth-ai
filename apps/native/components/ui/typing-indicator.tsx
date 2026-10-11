@@ -36,10 +36,10 @@ function Dot({ delay, color }: { delay: number; color: string }) {
 		<Animated.View
 			style={[
 				{
-					width: 7,
-					height: 7,
-					borderRadius: 3.5,
 					backgroundColor: color,
+					borderRadius: 3.5,
+					height: 7,
+					width: 7,
 				},
 				animatedStyle,
 			]}

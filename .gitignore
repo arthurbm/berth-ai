@@ -49,3 +49,6 @@ coverage
 .cache
 tmp
 temp
+
+# llama.rn copies its Hexagon HTP libraries here on every Android build
+apps/native/android/app/src/main/assets/ggml-hexagon/

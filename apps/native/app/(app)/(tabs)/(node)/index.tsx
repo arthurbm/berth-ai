@@ -54,28 +54,28 @@ export default function NodeScreen() {
 		}
 		await setProviderEnabled(false);
 		haptic();
-		toast.show({ variant: "default", label: "Provider desligado" });
+		toast.show({ label: "Provider desligado", variant: "default" });
 	};
 
 	const confirmEnable = async () => {
 		setConfirmOpen(false);
 		await setProviderEnabled(true);
 		haptic();
-		toast.show({ variant: "success", label: "Provider ativo" });
+		toast.show({ label: "Provider ativo", variant: "success" });
 	};
 
 	const handleCopy = (text: string, label: string) => {
 		copyToClipboard(text);
 		haptic();
-		toast.show({ variant: "success", label: `${label} copiado` });
+		toast.show({ label: `${label} copiado`, variant: "success" });
 	};
 
 	const handleTest = async () => {
 		const result = await runProviderTest();
 		setLastProviderTest(result);
 		toast.show({
-			variant: result.ok ? "success" : "danger",
 			label: result.ok ? "Endpoint saudavel" : "Falha no teste",
+			variant: result.ok ? "success" : "danger",
 		});
 		router.push("/test");
 	};
@@ -83,7 +83,7 @@ export default function NodeScreen() {
 	const handleRegenToken = async () => {
 		await regenerateProviderToken();
 		haptic();
-		toast.show({ variant: "warning", label: "Token regenerado" });
+		toast.show({ label: "Token regenerado", variant: "warning" });
 	};
 
 	const maskedToken = snapshot.providerToken
@@ -248,8 +248,8 @@ export default function NodeScreen() {
 										key={log.id}
 										onPress={() =>
 											router.push({
-												pathname: "/request/[requestId]",
 												params: { requestId: log.id },
+												pathname: "/request/[requestId]",
 											})
 										}
 										subtitle={`${log.source} · ${log.method} ${log.endpoint}`}
@@ -261,7 +261,7 @@ export default function NodeScreen() {
 							<Surface
 								className="rounded-2xl px-4 py-4"
 								style={{ borderCurve: "continuous" }}
-								variant="primary"
+								variant="default"
 							>
 								<Text className="text-muted text-sm">
 									Envie uma mensagem no chat ou teste o endpoint para gerar

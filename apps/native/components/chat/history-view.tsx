@@ -1,5 +1,5 @@
 import { Button, ListGroup } from "heroui-native";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppData } from "@/hooks/use-app-data";
@@ -11,7 +11,7 @@ interface HistoryViewProps {
 
 export function HistoryView({ onSwitchToConversa }: HistoryViewProps) {
 	const { snapshot, selectConversation, createConversation } = useAppData();
-	const conversations = snapshot.conversations;
+	const { conversations } = snapshot;
 
 	const handleNewConversation = async () => {
 		const id = await createConversation();
@@ -32,10 +32,7 @@ export function HistoryView({ onSwitchToConversa }: HistoryViewProps) {
 			</Button>
 
 			{conversations.length > 0 ? (
-				<ScrollView
-					contentContainerStyle={{ gap: 0 }}
-					style={{ flex: 1 }}
-				>
+				<ScrollView contentContainerStyle={{ gap: 0 }} style={{ flex: 1 }}>
 					<ListGroup>
 						{conversations.map((conversation) => (
 							<ListGroup.Item

@@ -42,24 +42,24 @@ export default function ModelDetailScreen() {
 
 	const handleDownload = async () => {
 		await startDownload(entry.id);
-		toast.show({ variant: "success", label: "Download iniciado" });
+		toast.show({ label: "Download iniciado", variant: "success" });
 	};
 
 	const handlePause = async () => {
 		await pauseDownload(entry.id);
-		toast.show({ variant: "default", label: "Download pausado" });
+		toast.show({ label: "Download pausado", variant: "default" });
 	};
 
 	const handleRemove = async () => {
 		await removeModel(entry.id);
-		toast.show({ variant: "danger", label: "Modelo removido" });
+		toast.show({ label: "Modelo removido", variant: "danger" });
 	};
 
 	const handleActivate = async () => {
 		await setActiveModel(entry.id);
 		toast.show({
-			variant: "success",
 			label: `Modelo ativo: ${entry.displayName}`,
+			variant: "success",
 		});
 	};
 

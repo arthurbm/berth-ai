@@ -1,4 +1,4 @@
-import { Tabs, useThemeColor } from "heroui-native";
+import { Tabs } from "heroui-native";
 import { Text, View } from "react-native";
 
 import { ChatView } from "@/components/chat/chat-view";
@@ -22,7 +22,11 @@ export default function ChatScreen() {
 	};
 
 	return (
-		<Container className="bg-background" isScrollable={false} style={{ paddingBottom: 0 }}>
+		<Container
+			className="bg-background"
+			isScrollable={false}
+			style={{ paddingBottom: 0 }}
+		>
 			<View className="flex-1 gap-3 px-4 pt-3 pb-3">
 				{/* Header */}
 				<View className="gap-0.5">

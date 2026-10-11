@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Input, Spinner } from "heroui-native";
+import { Input } from "heroui-native";
 import { Pressable, View } from "react-native";
 
 interface ChatInputProps {
@@ -40,12 +40,12 @@ export function ChatInput({
 					<Pressable
 						onPress={onStop}
 						style={{
-							width: 40,
-							height: 40,
-							borderRadius: 20,
-							backgroundColor: `${accentColor}20`,
 							alignItems: "center",
+							backgroundColor: `${accentColor}20`,
+							borderRadius: 20,
+							height: 40,
 							justifyContent: "center",
+							width: 40,
 						}}
 					>
 						<Ionicons color={accentColor} name="stop" size={18} />
@@ -54,13 +54,13 @@ export function ChatInput({
 					<Pressable
 						onPress={onSend}
 						style={{
-							width: 40,
-							height: 40,
-							borderRadius: 20,
-							backgroundColor: canSend ? accentColor : "transparent",
 							alignItems: "center",
+							backgroundColor: canSend ? accentColor : "transparent",
+							borderRadius: 20,
+							height: 40,
 							justifyContent: "center",
 							opacity: canSend ? 1 : 0.3,
+							width: 40,
 						}}
 					>
 						<Ionicons

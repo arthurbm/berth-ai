@@ -20,17 +20,17 @@ export function MessageBubble({ message, accentColor }: MessageBubbleProps) {
 				className={isUser ? "bg-accent" : "bg-surface-secondary"}
 				style={[
 					{
-						maxWidth: isUser ? "85%" : "92%",
 						alignSelf: isUser ? "flex-end" : "flex-start",
-						borderRadius: 20,
 						borderCurve: "continuous",
+						borderRadius: 20,
+						maxWidth: isUser ? "85%" : "92%",
 						paddingHorizontal: 16,
 						paddingVertical: 12,
 						...(isUser
 							? {}
 							: {
-									borderLeftWidth: 3,
 									borderLeftColor: accentColor,
+									borderLeftWidth: 3,
 								}),
 					},
 				]}

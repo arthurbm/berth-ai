@@ -21,13 +21,13 @@ export default function SettingsScreen() {
 	const handleRegenToken = async () => {
 		await regenerateProviderToken();
 		haptic();
-		toast.show({ variant: "warning", label: "Token regenerado" });
+		toast.show({ label: "Token regenerado", variant: "warning" });
 	};
 
 	const handleClearActivity = async () => {
 		await resetActivity();
 		haptic();
-		toast.show({ variant: "default", label: "Atividade limpa" });
+		toast.show({ label: "Atividade limpa", variant: "default" });
 	};
 
 	return (

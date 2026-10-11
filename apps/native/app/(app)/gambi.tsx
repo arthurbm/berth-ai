@@ -31,11 +31,11 @@ export default function GambiScreen() {
 	const handleSave = async () => {
 		await saveGambiDraft({
 			...snapshot.gambiDraft,
-			roomName,
-			roomCode,
 			credential,
+			roomCode,
+			roomName,
 		});
-		toast.show({ variant: "success", label: "Rascunho salvo" });
+		toast.show({ label: "Rascunho salvo", variant: "success" });
 	};
 
 	return (

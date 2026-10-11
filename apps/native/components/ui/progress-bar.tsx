@@ -20,18 +20,18 @@ export function ProgressBar({ progress, height = 4 }: ProgressBarProps) {
 	return (
 		<View
 			style={{
-				height,
-				borderRadius: height / 2,
 				backgroundColor: `${accentColor}20`,
+				borderRadius: height / 2,
+				height,
 				overflow: "hidden",
 			}}
 		>
 			<Animated.View
 				style={[
 					{
-						height,
-						borderRadius: height / 2,
 						backgroundColor: accentColor,
+						borderRadius: height / 2,
+						height,
 					},
 					animatedStyle,
 				]}
