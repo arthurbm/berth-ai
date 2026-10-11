@@ -1,11 +1,11 @@
 import { ImpactFeedbackStyle, impactAsync } from "expo-haptics";
 import { useThemeColor } from "heroui-native";
 import { useRef } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAppData } from "@/hooks/use-app-data";
-import { getActiveModel } from "@/lib/utils/selectors";
 import { useAppUiStore } from "@/stores/app-ui-store";
 
 import { ChatInput } from "./chat-input";
@@ -13,19 +13,17 @@ import { MessageBubble } from "./message-bubble";
 
 export function ChatView() {
 	const {
-		snapshot,
 		activeConversation,
 		activeConversationMessages,
 		sendMessage,
 		stopGeneration,
 	} = useAppData();
 	const { chatDraft: prompt, setChatDraft: setPrompt } = useAppUiStore();
-	const activeModel = getActiveModel(snapshot);
 	const canSend = prompt.trim().length > 0 && Boolean(activeConversation?.id);
 	const accentColor = useThemeColor("accent");
 	const scrollRef = useRef<ScrollView>(null);
 	const isStreaming = activeConversationMessages.some(
-		(m) => m.status === "streaming",
+		(m) => m.status === "streaming"
 	);
 
 	const handleSend = async () => {
@@ -51,7 +49,8 @@ export function ChatView() {
 
 	return (
 		<KeyboardAvoidingView
-			behavior={Platform.OS === "ios" ? "padding" : undefined}
+			automaticOffset
+			behavior="padding"
 			style={{ flex: 1 }}
 		>
 			<View className="flex-1 gap-3">

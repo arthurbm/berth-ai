@@ -16,39 +16,37 @@ type ProviderServerEventListener = (
 ) => void;
 
 export interface ProviderServerNativeModule {
-	addListener(
+	addListener: (
 		eventName: ProviderServerEventName,
 		listener: ProviderServerEventListener
-	): { remove: () => void };
-	getPlatformSupport(): string;
-	getStatus(): Promise<string>;
-	respond(
+	) => { remove: () => void };
+	getPlatformSupport: () => string;
+	getStatus: () => Promise<string>;
+	respond: (
 		requestId: string,
 		statusCode: number,
 		headers: Record<string, string>,
 		body: string
-	): Promise<void>;
-	respondError(
+	) => Promise<void>;
+	respondError: (
 		requestId: string,
 		statusCode: number,
 		message: string
-	): Promise<void>;
-	respondStreamChunk(requestId: string, chunk: string): Promise<void>;
-	respondStreamComplete(requestId: string): Promise<void>;
-	respondStreamStart(
+	) => Promise<void>;
+	respondStreamChunk: (requestId: string, chunk: string) => Promise<void>;
+	respondStreamComplete: (requestId: string) => Promise<void>;
+	respondStreamStart: (
 		requestId: string,
 		statusCode: number,
 		headers: Record<string, string>
-	): Promise<void>;
-	start(port: number): Promise<{ port: number; status: string }>;
-	stop(): Promise<void>;
+	) => Promise<void>;
+	start: (port: number) => Promise<{ port: number; status: string }>;
+	stop: () => Promise<void>;
 }
 
 let cachedModule: ProviderServerNativeModule | undefined;
 
-function removeNoop() {
-	return undefined;
-}
+const removeNoop = () => undefined;
 
 function createStubModule(): ProviderServerNativeModule {
 	return {

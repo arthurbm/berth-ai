@@ -15,9 +15,9 @@ interface AppUiStore {
 
 export const useAppUiStore = create<AppUiStore>((set) => ({
 	chatActiveSegment: "conversa",
-	setChatActiveSegment: (chatActiveSegment) => set({ chatActiveSegment }),
 	chatDraft: "",
-	setChatDraft: (chatDraft) => set({ chatDraft }),
 	lastProviderTest: null,
+	setChatActiveSegment: (chatActiveSegment) => set({ chatActiveSegment }),
+	setChatDraft: (chatDraft) => set({ chatDraft }),
 	setLastProviderTest: (lastProviderTest) => set({ lastProviderTest }),
 }));

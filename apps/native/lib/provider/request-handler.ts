@@ -119,7 +119,7 @@ function createJsonSuccessLog(
 }
 
 function extractPromptFromResponsesBody(body: Record<string, unknown>) {
-	const input = body.input;
+	const { input } = body;
 
 	if (typeof input === "string") {
 		return input;
@@ -194,7 +194,7 @@ function positiveIntegerFromBody(body: Record<string, unknown>, key: string) {
 	const value = numberFromBody(body, key);
 
 	if (value === undefined) {
-		return undefined;
+		return;
 	}
 
 	const parsed = Math.floor(value);

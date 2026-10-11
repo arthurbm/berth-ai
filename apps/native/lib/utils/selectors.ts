@@ -10,10 +10,10 @@ export const getCatalogModelState = (
 
 	return {
 		entry,
-		localRecord,
 		isActive: snapshot.activeModelId === entry.id,
-		status: localRecord?.status ?? "not_downloaded",
+		localRecord,
 		progress: localRecord?.progress ?? 0,
+		status: localRecord?.status ?? "not_downloaded",
 	};
 };
 

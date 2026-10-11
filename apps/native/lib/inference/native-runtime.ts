@@ -368,7 +368,7 @@ export class NativeInferenceRuntime {
 			await callbacks.onRuntimeStatusChange?.("error");
 			const message =
 				error instanceof Error ? error.message : "Falha na inferência local.";
-			throw new Error(message);
+			throw new Error(message, { cause: error });
 		} finally {
 			if (this.activeAbortController === abortController) {
 				this.activeAbortController = null;

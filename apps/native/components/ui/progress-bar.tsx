@@ -14,24 +14,24 @@ export function ProgressBar({ progress, height = 4 }: ProgressBarProps) {
 	const accentColor = useThemeColor("accent");
 
 	const animatedStyle = useAnimatedStyle(() => ({
-		width: `${withTiming(Math.min(progress, 1) * 100, { duration: 300 })}%`,
+		width: withTiming(`${Math.min(progress, 1) * 100}%`, { duration: 300 }),
 	}));
 
 	return (
 		<View
 			style={{
-				height,
-				borderRadius: height / 2,
 				backgroundColor: `${accentColor}20`,
+				borderRadius: height / 2,
+				height,
 				overflow: "hidden",
 			}}
 		>
 			<Animated.View
 				style={[
 					{
-						height,
-						borderRadius: height / 2,
 						backgroundColor: accentColor,
+						borderRadius: height / 2,
+						height,
 					},
 					animatedStyle,
 				]}

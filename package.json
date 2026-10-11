@@ -1,21 +1,21 @@
 {
   "name": "berth-ai",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
-  "type": "module",
   "scripts": {
-    "dev": "turbo dev",
     "build": "turbo build",
+    "check": "ultracite check",
     "check-types": "turbo check-types",
+    "dev": "turbo dev",
     "dev:native": "turbo -F native dev",
-    "native:dev-client": "pnpm --filter native exec expo start --dev-client",
+    "fix": "ultracite fix",
     "native:android:device": "pnpm --filter native exec expo run:android --device",
     "native:android:emulator": "pnpm --filter native exec expo run:android",
-    "check": "ultracite check",
-    "fix": "ultracite fix"
+    "native:dev-client": "pnpm --filter native exec expo start --dev-client"
   },
   "dependencies": {
     "@berth-ai/env": "workspace:*",
@@ -24,10 +24,10 @@
   },
   "devDependencies": {
     "@berth-ai/config": "workspace:*",
-    "@biomejs/biome": "2.4.10",
-    "turbo": "^2.8.12",
+    "@biomejs/biome": "2.5.15",
+    "turbo": "^2.11.7",
     "typescript": "catalog:",
-    "ultracite": "7.4.3"
+    "ultracite": "7.12.4"
   },
-  "packageManager": "pnpm@10.30.3"
+  "packageManager": "pnpm@10.34.6"
 }

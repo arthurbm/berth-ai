@@ -46,8 +46,8 @@ function InstalledModelCard({
 				className="rounded-3xl"
 				onTouchEnd={() =>
 					router.push({
-						pathname: "/models/model/[modelId]",
 						params: { modelId: entry.id },
+						pathname: "/models/model/[modelId]",
 					})
 				}
 				style={{ borderCurve: "continuous" }}
@@ -128,7 +128,7 @@ export default function ModelsScreen() {
 		return (
 			<Container className="px-4 pb-8">
 				<View className="gap-6 py-6">
-					<SkeletonGroup isLoaded={false}>
+					<SkeletonGroup isLoading>
 						<Skeleton className="h-32 w-full rounded-3xl" />
 						<Skeleton className="h-32 w-full rounded-3xl" />
 						<Skeleton className="h-32 w-full rounded-3xl" />
@@ -208,8 +208,8 @@ export default function ModelsScreen() {
 											className="rounded-3xl border border-border px-4"
 											onTouchEnd={() =>
 												router.push({
-													pathname: "/models/model/[modelId]",
 													params: { modelId: id },
+													pathname: "/models/model/[modelId]",
 												})
 											}
 											style={{ borderCurve: "continuous" }}

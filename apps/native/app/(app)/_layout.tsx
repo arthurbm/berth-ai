@@ -8,8 +8,8 @@ export default function AppLayout() {
 	return (
 		<Stack
 			screenOptions={{
-				headerTintColor: themeColorForeground,
 				headerStyle: { backgroundColor: themeColorBackground },
+				headerTintColor: themeColorForeground,
 				headerTitleStyle: { color: themeColorForeground, fontWeight: "600" },
 			}}
 		>
@@ -17,19 +17,19 @@ export default function AppLayout() {
 			<Stack.Screen
 				name="gambi"
 				options={{
-					title: "Gambi",
 					presentation: "formSheet",
-					sheetGrabberVisible: true,
 					sheetAllowedDetents: [0.85, 1.0],
+					sheetGrabberVisible: true,
+					title: "Gambi",
 				}}
 			/>
 			<Stack.Screen
 				name="settings"
 				options={{
-					title: "Ajustes",
 					presentation: "formSheet",
-					sheetGrabberVisible: true,
 					sheetAllowedDetents: [0.75, 1.0],
+					sheetGrabberVisible: true,
+					title: "Ajustes",
 				}}
 			/>
 		</Stack>

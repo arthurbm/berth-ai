@@ -16,7 +16,7 @@ export default function RequestsScreen() {
 
 	const handleClear = async () => {
 		await resetActivity();
-		toast.show({ variant: "default", label: "Atividade limpa" });
+		toast.show({ label: "Atividade limpa", variant: "default" });
 	};
 
 	return (
@@ -46,8 +46,8 @@ export default function RequestsScreen() {
 											detail={formatRelativeTime(log.createdAt)}
 											onPress={() =>
 												router.push({
-													pathname: "/request/[requestId]",
 													params: { requestId: log.id },
+													pathname: "/request/[requestId]",
 												})
 											}
 											subtitle={`${log.source} · ${log.method} ${log.endpoint}`}

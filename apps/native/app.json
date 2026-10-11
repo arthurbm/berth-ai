@@ -6,12 +6,20 @@
     "web": {
       "bundler": "metro"
     },
-    "newArchEnabled": true,
     "name": "berth-ai",
     "slug": "berth-ai",
     "plugins": [
       "expo-font",
       "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -19,7 +27,7 @@
             "minSdkVersion": 26
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4"
           }
         }
       ],
@@ -29,7 +37,7 @@
           "enableEntitlements": true,
           "entitlementsProfile": "production",
           "forceCxx20": true,
-          "enableOpenCL": true
+          "enableOpenCLAndHexagon": true
         }
       ]
     ],

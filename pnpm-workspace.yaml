@@ -2,6 +2,13 @@ packages:
   - apps/*
   - packages/*
 catalog:
-  dotenv: ^17.2.2
-  zod: ^4.1.13
-  typescript: ^5
+  dotenv: ^18.0.7
+  zod: ^4.6.5
+  typescript: ~6.0.3
+onlyBuiltDependencies:
+  - llama.rn
+peerDependencyRules:
+  allowedVersions:
+    # @react-native-ai/llama@0.12.0 still declares llama.rn ^0.10.1, but its
+    # source type-checks against llama.rn 0.12 and the APIs it uses are unchanged.
+    "@react-native-ai/llama>llama.rn": "0.12"

@@ -193,7 +193,7 @@ async function setSetting(key: string, value: string) {
 	await db
 		.insert(settingsTable)
 		.values({ key, value })
-		.onConflictDoUpdate({ target: settingsTable.key, set: { value } });
+		.onConflictDoUpdate({ set: { value }, target: settingsTable.key });
 }
 
 async function deleteSetting(key: string) {
@@ -425,12 +425,12 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	const abortedGenerationsRef = useRef<Set<string>>(new Set());
 	const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 	const snapshotQuery = useQuery({
-		queryKey: APP_SNAPSHOT_QUERY_KEY,
 		queryFn: async () => {
 			await migrateDatabase();
 			await nativeInferenceRuntime.ensureModelsDirectory();
 			return loadSnapshot();
 		},
+		queryKey: APP_SNAPSHOT_QUERY_KEY,
 	});
 
 	useEffect(() => {
@@ -472,7 +472,6 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.insert(localModelsTable)
 			.values(record)
 			.onConflictDoUpdate({
-				target: localModelsTable.modelId,
 				set: {
 					artifactId: record.artifactId,
 					bytesOnDisk: record.bytesOnDisk,
@@ -488,6 +487,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 					status: record.status,
 					updatedAt: record.updatedAt,
 				},
+				target: localModelsTable.modelId,
 			});
 	};
 
@@ -496,12 +496,12 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.insert(conversationsTable)
 			.values(conversation)
 			.onConflictDoUpdate({
-				target: conversationsTable.id,
 				set: {
 					modelId: conversation.modelId,
 					title: conversation.title,
 					updatedAt: conversation.updatedAt,
 				},
+				target: conversationsTable.id,
 			});
 	};
 
@@ -510,11 +510,11 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.insert(messagesTable)
 			.values(message)
 			.onConflictDoUpdate({
-				target: messagesTable.id,
 				set: {
 					content: message.content,
 					status: message.status,
 				},
+				target: messagesTable.id,
 			});
 	};
 
@@ -560,7 +560,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const startProviderServer = useEffectEvent(async () => {
-		const current = snapshotRef.current;
+		const { current } = snapshotRef;
 
 		if (!(current.isHydrated && current.providerSettings.enabled)) {
 			return;
@@ -837,7 +837,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const setActiveModel = async (modelId: string) => {
-		const current = snapshotRef.current;
+		const { current } = snapshotRef;
 		const entry = current.catalog.find((item) => item.id === modelId);
 		const record = current.localModels.find(
 			(item) =>
@@ -1021,8 +1021,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const sendMessage = async ({ conversationId, prompt }: SendMessageInput) => {
-		const current = snapshotRef.current;
-		const activeModelId = current.activeModelId;
+		const { current } = snapshotRef;
+		const { activeModelId } = current;
 		const activeModel = current.catalog.find(
 			(model) => model.id === activeModelId
 		);
@@ -1260,7 +1260,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	const runProviderTest = async (): Promise<ProviderTestResult> => {
-		const current = snapshotRef.current;
+		const { current } = snapshotRef;
 		const activeModel = current.catalog.find(
 			(model) => model.id === current.activeModelId
 		);
@@ -1416,7 +1416,6 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 			.insert(gambiDraftTable)
 			.values({ id: 1, ...draft })
 			.onConflictDoUpdate({
-				target: gambiDraftTable.id,
 				set: {
 					credential: draft.credential,
 					modelId: draft.modelId,
@@ -1424,6 +1423,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 					roomName: draft.roomName,
 					visibility: draft.visibility,
 				},
+				target: gambiDraftTable.id,
 			});
 
 		setSnapshot((current) => ({ ...current, gambiDraft: draft }));
@@ -1468,7 +1468,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 		[activeConversation, snapshot.messages]
 	);
 
-	const value = {
+	const contextValue = {
 		activeConversation,
 		activeConversationMessages,
 		cancelDownload,
@@ -1494,6 +1494,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
 	};
 
 	return (
-		<AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>
+		<AppDataContext.Provider value={contextValue}>
+			{children}
+		</AppDataContext.Provider>
 	);
 }

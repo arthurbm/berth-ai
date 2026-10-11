@@ -10,10 +10,10 @@ import Animated, {
 import type { EndpointStatus } from "@/types/app-state";
 
 const statusColors: Record<EndpointStatus, string> = {
-	online: "#22c55e",
-	starting: "#f59e0b",
 	error: "#ef4444",
 	offline: "#6b7280",
+	online: "#22c55e",
+	starting: "#f59e0b",
 };
 
 export function NodeStatusDot({ status }: { status: EndpointStatus }) {
@@ -35,21 +35,21 @@ export function NodeStatusDot({ status }: { status: EndpointStatus }) {
 	return (
 		<View
 			style={{
-				width: 12,
-				height: 12,
-				borderRadius: 6,
-				backgroundColor: `${color}33`,
 				alignItems: "center",
+				backgroundColor: `${color}33`,
+				borderRadius: 6,
+				height: 12,
 				justifyContent: "center",
+				width: 12,
 			}}
 		>
 			<Animated.View
 				style={[
 					{
-						width: 8,
-						height: 8,
-						borderRadius: 4,
 						backgroundColor: color,
+						borderRadius: 4,
+						height: 8,
+						width: 8,
 					},
 					animatedStyle,
 				]}

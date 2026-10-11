@@ -28,7 +28,7 @@ export interface ProviderStreamResponse {
 export type ProviderRouteResult = ProviderJsonResponse | ProviderStreamResponse;
 
 export function validateBearerToken(
-	headers: Record<string, string>,
+	headers: Record<string, string | undefined>,
 	expectedToken: string
 ) {
 	const authorization =

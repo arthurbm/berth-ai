@@ -11,7 +11,7 @@ export function StatCard({ label, value }: StatCardProps) {
 		<Surface
 			className="min-w-[100px] flex-1 rounded-2xl px-4 py-3"
 			style={{ borderCurve: "continuous" }}
-			variant="primary"
+			variant="default"
 		>
 			<View className="gap-1">
 				<Text className="text-muted text-xs uppercase tracking-[1.4px]">
